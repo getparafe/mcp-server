@@ -9,22 +9,27 @@ MCP tool server for the Parafe Trust Broker. Wraps `@getparafe/sdk` to expose tr
 - `src/schemas.ts` — Zod schemas for tool parameters (required by MCP SDK)
 - `src/resources.ts` — MCP resource definitions
 - `src/bin/parafe-mcp.ts` — CLI entry point for `npx` execution
-- `tests/server.test.ts` — Unit tests (35 tests)
+- `tests/unit/server.test.ts` — Unit tests (37 tests, no network)
+- `tests/integration/lifecycle.test.ts` — Integration tests (4 tests, self-bootstrapping against live broker)
 
 ## Running
 
 ```bash
 npm install
 npm run build
-npm test
+npm run test:unit           # Unit tests (no network)
+npm run test:integration    # Integration tests (requires broker)
+npm test                    # Both
 
 # Run locally with stdio
 PARAFE_BROKER_URL=https://... PARAFE_API_KEY=prf_key_... node dist/bin/parafe-mcp.js
 ```
 
+Integration tests are self-bootstrapping — they create their own org + API key via `POST /auth/signup`. The only env var needed is `PARAFE_TEST_BROKER_URL` (defaults to `http://localhost:3000`).
+
 ## Key Design Decisions
 
-- **Thin wrapper** — all broker interaction goes through `@getparafe/sdk`. No direct HTTP calls to the broker except for `parafe_discover` (fetches agent cards) and `parafe_get_public_key`.
+- **Thin wrapper** — all broker interaction goes through `@getparafe/sdk`. No direct HTTP calls to the broker except for `parafe_discover` (fetches agent cards from third-party domains).
 - **Zod schemas** — MCP SDK requires Zod for parameter validation. Schemas in `src/schemas.ts`.
 - **Tool descriptions** — written so an LLM knows when/how to use each tool without external docs. These are in `src/tools.ts`.
 - **Credential lifecycle** — auto-loads on startup if passphrase is set, auto-saves after registration.
