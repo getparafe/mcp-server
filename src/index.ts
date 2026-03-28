@@ -138,6 +138,18 @@ async function trySaveCredentials(client: ParafeClient, config: ServerConfig): P
   await client.saveCredentials(config.credentialsPath, config.credentialsPassphrase);
 }
 
+// ── SDK 0.2.0 method shim ──
+// getPublicKey() and verifyConsentLocally() were added in @getparafe/sdk@0.2.0.
+// Cast through this interface until the published type declarations include them.
+interface ParafeClientV2 {
+  getPublicKey(): Promise<unknown>;
+  verifyConsentLocally(consentToken: string, brokerPublicKeyBase64: string): Promise<unknown>;
+}
+
+function asV2(client: ParafeClient): ParafeClient & ParafeClientV2 {
+  return client as ParafeClient & ParafeClientV2;
+}
+
 // ── Tool handler ──
 
 type ToolArgs = Record<string, unknown>;
@@ -277,13 +289,14 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.GET_PUBLIC_KEY: {
-      const res = await fetch(`${config.brokerUrl}/public-key`, {
-        headers: { 'User-Agent': `@getparafe/mcp-server/${VERSION}` },
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch public key: ${res.status}`);
-      }
-      return res.json();
+      return asV2(client).getPublicKey();
+    }
+
+    case TOOL_NAMES.VERIFY_CONSENT_LOCALLY: {
+      return asV2(client).verifyConsentLocally(
+        args.consent_token as string,
+        args.broker_public_key as string,
+      );
     }
 
     default:
@@ -303,13 +316,7 @@ async function handleResourceRead(
   }
 
   if (uri === 'parafe://public-key') {
-    const res = await fetch(`${config.brokerUrl}/public-key`, {
-      headers: { 'User-Agent': `@getparafe/mcp-server/${VERSION}` },
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch public key: ${res.status}`);
-    }
-    return JSON.stringify(await res.json(), null, 2);
+    return JSON.stringify(await asV2(client).getPublicKey(), null, 2);
   }
 
   // parafe://session/{sessionId}
@@ -394,6 +401,7 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.RENEW_CREDENTIAL, desc(TOOL_NAMES.RENEW_CREDENTIAL), schemas.renew_credential, h(TOOL_NAMES.RENEW_CREDENTIAL));
   server.tool(TOOL_NAMES.UPDATE_SCOPE_POLICIES, desc(TOOL_NAMES.UPDATE_SCOPE_POLICIES), schemas.update_scope_policies, h(TOOL_NAMES.UPDATE_SCOPE_POLICIES));
   server.tool(TOOL_NAMES.GET_PUBLIC_KEY, desc(TOOL_NAMES.GET_PUBLIC_KEY), h(TOOL_NAMES.GET_PUBLIC_KEY));
+  server.tool(TOOL_NAMES.VERIFY_CONSENT_LOCALLY, desc(TOOL_NAMES.VERIFY_CONSENT_LOCALLY), schemas.verify_consent_locally, h(TOOL_NAMES.VERIFY_CONSENT_LOCALLY));
 
   // Register static resources
   for (const resDef of RESOURCE_DEFINITIONS) {

@@ -42,11 +42,13 @@
     "dev": "tsc --watch",
     "start": "node dist/bin/parafe-mcp.js",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@getparafe/sdk": "^0.1.0",
+    "@getparafe/sdk": "^0.2.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^4.3.6"
   },

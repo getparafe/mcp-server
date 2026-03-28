@@ -21,6 +21,7 @@ export const TOOL_NAMES = {
   RENEW_CREDENTIAL: 'parafe_renew_credential',
   UPDATE_SCOPE_POLICIES: 'parafe_update_scope_policies',
   GET_PUBLIC_KEY: 'parafe_get_public_key',
+  VERIFY_CONSENT_LOCALLY: 'parafe_verify_consent_locally',
 } as const;
 
 // ── Tool definitions (name, description, inputSchema) ──
@@ -359,6 +360,28 @@ For example, you can require that any agent requesting 'payment-processing' scop
       type: 'object' as const,
       properties: {},
       required: [],
+    },
+  },
+  {
+    name: TOOL_NAMES.VERIFY_CONSENT_LOCALLY,
+    description: `Verify a consent token locally using the broker's Ed25519 public key — no network call required. Use this when you need to validate a consent token offline or in a latency-sensitive path.
+
+Provide the JWT consent token and the broker's base64-encoded Ed25519 public key (from parafe_get_public_key). Returns the decoded token payload if valid, or an error if the signature is invalid or the token is expired.
+
+Use parafe_verify_consent (network round-trip) when you also want the broker to check the action against scope policy. Use this tool when you only need signature and expiry validation.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        consent_token: {
+          type: 'string',
+          description: 'JWT consent token to verify.',
+        },
+        broker_public_key: {
+          type: 'string',
+          description: "Broker's Ed25519 public key in base64 format (from parafe_get_public_key or the parafe://public-key resource).",
+        },
+      },
+      required: ['consent_token', 'broker_public_key'],
     },
   },
 ];

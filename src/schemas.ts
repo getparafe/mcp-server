@@ -89,4 +89,9 @@ export const schemas = {
   },
 
   get_public_key: {},
+
+  verify_consent_locally: {
+    consent_token: z.string().describe('JWT consent token to verify.'),
+    broker_public_key: z.string().describe("Broker's Ed25519 public key in base64 format (from parafe_get_public_key or the parafe://public-key resource)."),
+  },
 } as const;

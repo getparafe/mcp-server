@@ -1,5 +1,5 @@
 /**
- * Tests for @getparafe/mcp-server
+ * Unit tests for @getparafe/mcp-server
  *
  * These are unit tests with mocked SDK and HTTP calls.
  * They verify tool definitions, handler routing, authorization building,
@@ -7,15 +7,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from '../src/tools.js';
-import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from '../src/resources.js';
-import { loadConfig, createServer, type ServerConfig } from '../src/index.js';
+import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from '../../src/tools.js';
+import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from '../../src/resources.js';
+import { loadConfig, createServer, type ServerConfig } from '../../src/index.js';
 
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 13 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(13);
+  it('should define exactly 14 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(14);
   });
 
   it('should have unique tool names', () => {
@@ -38,6 +38,7 @@ describe('Tool definitions', () => {
     expect(names).toContain(TOOL_NAMES.RENEW_CREDENTIAL);
     expect(names).toContain(TOOL_NAMES.UPDATE_SCOPE_POLICIES);
     expect(names).toContain(TOOL_NAMES.GET_PUBLIC_KEY);
+    expect(names).toContain(TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
   });
 
   it('every tool should have a non-empty description', () => {
@@ -96,6 +97,13 @@ describe('Tool definitions', () => {
   it('parafe_get_public_key should have no required fields', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.GET_PUBLIC_KEY);
     expect(tool?.inputSchema.required).toHaveLength(0);
+  });
+
+  it('parafe_verify_consent_locally should require consent_token and broker_public_key', () => {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
+    expect(tool?.inputSchema.required).toEqual(
+      expect.arrayContaining(['consent_token', 'broker_public_key']),
+    );
   });
 
   it('handshake tools should include authorization_evidence with timestamp field', () => {
@@ -305,5 +313,10 @@ describe('Tool description quality', () => {
   it('parafe_register description should mention credential persistence', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.REGISTER);
     expect(tool?.description).toContain('persist across sessions');
+  });
+
+  it('parafe_verify_consent_locally description should mention no network call', () => {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
+    expect(tool?.description).toContain('no network');
   });
 });
