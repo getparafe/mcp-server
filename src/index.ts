@@ -138,18 +138,6 @@ async function trySaveCredentials(client: ParafeClient, config: ServerConfig): P
   await client.saveCredentials(config.credentialsPath, config.credentialsPassphrase);
 }
 
-// ── SDK 0.2.0 method shim ──
-// getPublicKey() and verifyConsentLocally() were added in @getparafe/sdk@0.2.0.
-// Cast through this interface until the published type declarations include them.
-interface ParafeClientV2 {
-  getPublicKey(): Promise<unknown>;
-  verifyConsentLocally(consentToken: string, brokerPublicKeyBase64: string): Promise<unknown>;
-}
-
-function asV2(client: ParafeClient): ParafeClient & ParafeClientV2 {
-  return client as ParafeClient & ParafeClientV2;
-}
-
 // ── Tool handler ──
 
 type ToolArgs = Record<string, unknown>;
@@ -289,11 +277,11 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.GET_PUBLIC_KEY: {
-      return asV2(client).getPublicKey();
+      return client.getPublicKey();
     }
 
     case TOOL_NAMES.VERIFY_CONSENT_LOCALLY: {
-      return asV2(client).verifyConsentLocally(
+      return client.verifyConsentLocally(
         args.consent_token as string,
         args.broker_public_key as string,
       );
@@ -316,7 +304,7 @@ async function handleResourceRead(
   }
 
   if (uri === 'parafe://public-key') {
-    return JSON.stringify(await asV2(client).getPublicKey(), null, 2);
+    return JSON.stringify(await client.getPublicKey(), null, 2);
   }
 
   // parafe://session/{sessionId}

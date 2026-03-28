@@ -25,18 +25,19 @@ async function bootstrap(label: string): Promise<string> {
     body: JSON.stringify({
       email,
       password: 'TestPassword123!',
-      orgName: `test-org-${label}-${Date.now().toString(36)}`,
+      name: `Test User ${label}`,
+      org_name: `test-org-${label}-${Date.now().toString(36)}`,
     }),
   });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Bootstrap signup failed (${res.status}): ${body}`);
   }
-  const data = await res.json() as { apiKey?: string };
-  if (!data.apiKey) {
-    throw new Error('Bootstrap: no apiKey in signup response');
+  const data = await res.json() as { api_key?: { key: string } };
+  if (!data.api_key?.key) {
+    throw new Error('Bootstrap: no api_key.key in signup response');
   }
-  return data.apiKey;
+  return data.api_key.key;
 }
 
 // ── Health check ──
@@ -87,9 +88,11 @@ describe('Trust lifecycle', () => {
     const { client: clientA } = createServer(configA);
     const { client: clientB } = createServer(configB);
 
+    const suffix = Date.now().toString(36);
+
     // Register agent A
     const regA = await clientA.register({
-      name: 'mcp-test-agent-a',
+      name: `mcp-agent-a-${suffix}`,
       type: 'personal',
       owner: 'test-org-a',
     });
@@ -98,7 +101,7 @@ describe('Trust lifecycle', () => {
 
     // Register agent B
     const regB = await clientB.register({
-      name: 'mcp-test-agent-b',
+      name: `mcp-agent-b-${suffix}`,
       type: 'personal',
       owner: 'test-org-b',
     });
@@ -112,28 +115,29 @@ describe('Trust lifecycle', () => {
       authorization: { modality: 'autonomous' },
     });
     expect(handshakeResult.handshakeId).toBeDefined();
-    expect(handshakeResult.challengeNonce).toBeDefined();
+    expect(handshakeResult.challengeForTarget).toBeDefined();
 
     // Agent B completes the handshake
     const session = await clientB.completeHandshake({
       handshakeId: handshakeResult.handshakeId,
-      challengeNonce: handshakeResult.challengeNonce,
+      challengeNonce: handshakeResult.challengeForTarget,
     });
     expect(session.sessionId).toBeDefined();
     expect(session.consentToken).toBeDefined();
+    expect(session.consentToken.token).toBeDefined();
 
     // Verify consent token (network round-trip)
     const consent = await clientA.verifyConsent({
-      consentToken: session.consentToken,
+      consentToken: session.consentToken.token,
       action: 'read',
       sessionId: session.sessionId,
     });
     expect(consent.permitted).toBe(true);
 
     // Verify consent token locally (no network)
-    const publicKeyResult = await clientA.getPublicKey() as { publicKey: string };
+    const publicKeyResult = await clientA.getPublicKey();
     const localVerify = await clientA.verifyConsentLocally(
-      session.consentToken,
+      session.consentToken.token,
       publicKeyResult.publicKey,
     );
     expect(localVerify).toBeDefined();
@@ -149,12 +153,12 @@ describe('Trust lifecycle', () => {
     // Close the session and get a receipt
     const receipt = await clientA.closeSession(session.sessionId);
     expect(receipt).toBeDefined();
-    expect((receipt as { receiptId?: string }).receiptId).toBeDefined();
-    expect((receipt as { signature?: string }).signature).toBeDefined();
+    expect(receipt.receiptId).toBeDefined();
+    expect(receipt.signature).toBeDefined();
 
     // Verify the receipt signature
-    const verification = await clientA.verifyReceipt(receipt as Parameters<typeof clientA.verifyReceipt>[0]);
-    expect((verification as { valid: boolean }).valid).toBe(true);
+    const verification = await clientA.verifyReceipt(receipt);
+    expect(verification.valid).toBe(true);
   });
 });
 
