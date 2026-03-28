@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/getparafe/mcp-server"
+    "url": "git+https://github.com/getparafe/mcp-server.git"
   },
   "homepage": "https://github.com/getparafe/mcp-server#readme",
   "bugs": {
@@ -30,7 +30,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "parafe-mcp": "./dist/bin/parafe-mcp.js"
+    "parafe-mcp": "dist/bin/parafe-mcp.js"
   },
   "files": [
     "dist",
