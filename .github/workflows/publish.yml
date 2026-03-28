@@ -15,7 +15,12 @@ jobs:
           node-version: '22'
       - run: npm install
       - run: npm run build
-      - run: npm test
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Integration tests (staging)
+        env:
+          PARAFE_TEST_BROKER_URL: ${{ secrets.STAGING_BROKER_URL }}
+        run: npm run test:integration
 
   publish:
     name: Publish to npm
