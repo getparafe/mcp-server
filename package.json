@@ -1,0 +1,58 @@
+{
+  "name": "@getparafe/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP tool server for the Parafe Trust Broker — add trust handshakes to any MCP-compatible AI agent",
+  "author": "Parafe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getparafe/mcp-server"
+  },
+  "homepage": "https://github.com/getparafe/mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/getparafe/mcp-server/issues"
+  },
+  "keywords": [
+    "parafe",
+    "mcp",
+    "trust",
+    "broker",
+    "agent",
+    "identity",
+    "ed25519",
+    "handshake",
+    "model-context-protocol"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "parafe-mcp": "./dist/bin/parafe-mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin/parafe-mcp.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@getparafe/sdk": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
