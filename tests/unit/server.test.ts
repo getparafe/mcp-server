@@ -14,8 +14,8 @@ import { loadConfig, createServer, type ServerConfig } from '../../src/index.js'
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 14 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(14);
+  it('should define exactly 15 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(15);
   });
 
   it('should have unique tool names', () => {

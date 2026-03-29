@@ -392,7 +392,7 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.REVOKE_AGENT, desc(TOOL_NAMES.REVOKE_AGENT), schemas.revoke_agent, h(TOOL_NAMES.REVOKE_AGENT));
   server.tool(TOOL_NAMES.RENEW_CREDENTIAL, desc(TOOL_NAMES.RENEW_CREDENTIAL), schemas.renew_credential, h(TOOL_NAMES.RENEW_CREDENTIAL));
   server.tool(TOOL_NAMES.UPDATE_SCOPE_POLICIES, desc(TOOL_NAMES.UPDATE_SCOPE_POLICIES), schemas.update_scope_policies, h(TOOL_NAMES.UPDATE_SCOPE_POLICIES));
-  server.tool(TOOL_NAMES.GET_PUBLIC_KEY, desc(TOOL_NAMES.GET_PUBLIC_KEY), h(TOOL_NAMES.GET_PUBLIC_KEY));
+  server.tool(TOOL_NAMES.GET_PUBLIC_KEY, desc(TOOL_NAMES.GET_PUBLIC_KEY), schemas.get_public_key, h(TOOL_NAMES.GET_PUBLIC_KEY));
   server.tool(TOOL_NAMES.VERIFY_CONSENT_LOCALLY, desc(TOOL_NAMES.VERIFY_CONSENT_LOCALLY), schemas.verify_consent_locally, h(TOOL_NAMES.VERIFY_CONSENT_LOCALLY));
   server.tool(TOOL_NAMES.GET_AGENT_METRICS, desc(TOOL_NAMES.GET_AGENT_METRICS), schemas.get_agent_metrics, h(TOOL_NAMES.GET_AGENT_METRICS));
 
