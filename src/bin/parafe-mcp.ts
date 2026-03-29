@@ -80,6 +80,14 @@ async function main() {
   }
 }
 
+// Graceful shutdown
+function shutdown(signal: string) {
+  console.error(`Received ${signal}, shutting down gracefully...`);
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 main().catch((err) => {
   console.error('Fatal error:', err);
   process.exit(1);
