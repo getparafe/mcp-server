@@ -22,6 +22,7 @@ export const TOOL_NAMES = {
   UPDATE_SCOPE_POLICIES: 'parafe_update_scope_policies',
   GET_PUBLIC_KEY: 'parafe_get_public_key',
   VERIFY_CONSENT_LOCALLY: 'parafe_verify_consent_locally',
+  GET_AGENT_METRICS: 'parafe_get_agent_metrics',
 } as const;
 
 // ── Tool definitions (name, description, inputSchema) ──
@@ -382,6 +383,31 @@ Use parafe_verify_consent (network round-trip) when you also want the broker to 
         },
       },
       required: ['consent_token', 'broker_public_key'],
+    },
+  },
+  {
+    name: TOOL_NAMES.GET_AGENT_METRICS,
+    description: `Retrieve reputation metrics for a Parafe-registered agent. Returns the raw trust signals that indicate how trustworthy an agent is based on its interaction history: session completion rate, unique counterparties, tenure, handshake success rate, and denied scope requests.
+
+Use this before deciding whether to interact with an agent — especially self_registered agents — to assess their track record. Does not return a score; returns the signals a score would be built from.
+
+Key signals:
+- tenure_days: How long the agent has been active
+- completion_rate: Ratio of successfully closed sessions to total sessions (0–1)
+- unique_counterparties: How many distinct agents this agent has interacted with
+- handshake_success_rate: Ratio of successful handshakes to total attempts (0–1)
+- denied_scope_requests: How many times this agent's consent token requests were rejected by policy (wrong modality, insufficient assurance, insufficient tier)
+
+Higher tenure, completion rate, counterparty count, and handshake success rate indicate a more trustworthy agent. Higher denied scope requests may indicate an agent repeatedly requesting access it isn't authorized for.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        agent_id: {
+          type: 'string',
+          description: "Parafe agent ID to get metrics for (starts with 'prf_agent_').",
+        },
+      },
+      required: ['agent_id'],
     },
   },
 ];

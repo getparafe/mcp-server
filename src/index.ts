@@ -287,6 +287,10 @@ async function handleToolCall(
       );
     }
 
+    case TOOL_NAMES.GET_AGENT_METRICS: {
+      return client.getAgentMetrics(args.agent_id as string);
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -390,6 +394,7 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.UPDATE_SCOPE_POLICIES, desc(TOOL_NAMES.UPDATE_SCOPE_POLICIES), schemas.update_scope_policies, h(TOOL_NAMES.UPDATE_SCOPE_POLICIES));
   server.tool(TOOL_NAMES.GET_PUBLIC_KEY, desc(TOOL_NAMES.GET_PUBLIC_KEY), h(TOOL_NAMES.GET_PUBLIC_KEY));
   server.tool(TOOL_NAMES.VERIFY_CONSENT_LOCALLY, desc(TOOL_NAMES.VERIFY_CONSENT_LOCALLY), schemas.verify_consent_locally, h(TOOL_NAMES.VERIFY_CONSENT_LOCALLY));
+  server.tool(TOOL_NAMES.GET_AGENT_METRICS, desc(TOOL_NAMES.GET_AGENT_METRICS), schemas.get_agent_metrics, h(TOOL_NAMES.GET_AGENT_METRICS));
 
   // Register static resources
   for (const resDef of RESOURCE_DEFINITIONS) {

@@ -94,4 +94,8 @@ export const schemas = {
     consent_token: z.string().describe('JWT consent token to verify.'),
     broker_public_key: z.string().describe("Broker's Ed25519 public key in base64 format (from parafe_get_public_key or the parafe://public-key resource)."),
   },
+
+  get_agent_metrics: {
+    agent_id: z.string().describe("Parafe agent ID to get metrics for (starts with 'prf_agent_')."),
+  },
 } as const;

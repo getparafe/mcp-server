@@ -70,7 +70,7 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
 
 ### 3. Use It
 
-Your agent now has 13 trust tools. The typical flow:
+Your agent now has 15 trust tools. The typical flow:
 
 1. **Discover** — `parafe_discover` fetches the target agent's agent card to learn its trust requirements
 2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
@@ -104,6 +104,8 @@ Your agent now has 13 trust tools. The typical flow:
 | `parafe_renew_credential` | Renew a credential to the org's current verification tier |
 | `parafe_update_scope_policies` | Update an agent's accepted scope policies |
 | `parafe_get_public_key` | Get the broker's Ed25519 public key |
+| `parafe_verify_consent_locally` | Verify a consent token offline using the broker's public key |
+| `parafe_get_agent_metrics` | Get reputation metrics for an agent (trust signals from interaction history) |
 
 ## Resources
 
