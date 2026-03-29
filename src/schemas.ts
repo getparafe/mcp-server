@@ -76,15 +76,15 @@ export const schemas = {
   },
 
   revoke_agent: {
-    agent_id: z.string().describe("Agent ID to revoke (starts with 'prf_agent_')."),
+    agent_id: z.string().regex(/^prf_agent_/, 'agent_id must start with "prf_agent_"').describe("Agent ID to revoke (starts with 'prf_agent_')."),
   },
 
   renew_credential: {
-    agent_id: z.string().describe('Agent ID to renew credentials for.'),
+    agent_id: z.string().regex(/^prf_agent_/, 'agent_id must start with "prf_agent_"').describe('Agent ID to renew credentials for.'),
   },
 
   update_scope_policies: {
-    agent_id: z.string().describe('Agent ID to update scope policies for.'),
+    agent_id: z.string().regex(/^prf_agent_/, 'agent_id must start with "prf_agent_"').describe('Agent ID to update scope policies for.'),
     scope_policies: z.record(z.string(), scopePolicyValue).describe('New scope policies. Keys are scope names.'),
   },
 
@@ -96,6 +96,6 @@ export const schemas = {
   },
 
   get_agent_metrics: {
-    agent_id: z.string().describe("Parafe agent ID to get metrics for (starts with 'prf_agent_')."),
+    agent_id: z.string().regex(/^prf_agent_/, 'agent_id must start with "prf_agent_"').describe("Parafe agent ID to get metrics for (starts with 'prf_agent_')."),
   },
 } as const;

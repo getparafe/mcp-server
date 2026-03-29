@@ -6,6 +6,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { ParafeClient, ParafeError } from '@getparafe/sdk';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from './tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from './resources.js';
@@ -180,10 +181,17 @@ async function handleToolCall(
       });
 
       // Auto-save credentials
-      await trySaveCredentials(client, config);
+      let persistenceWarning: string | undefined;
+      try {
+        await trySaveCredentials(client, config);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to persist credentials: ${msg}`);
+        persistenceWarning = 'Credentials were not saved to disk. Store them manually.';
+      }
 
       // Return without exposing the private key
-      return {
+      const response: Record<string, unknown> = {
         agentId: result.agentId,
         publicKey: result.publicKey,
         verificationTier: result.verificationTier,
@@ -191,6 +199,10 @@ async function handleToolCall(
         issuedAt: result.issuedAt,
         expiresAt: result.expiresAt,
       };
+      if (persistenceWarning) {
+        response.warning = persistenceWarning;
+      }
+      return response;
     }
 
     case TOOL_NAMES.INITIATE_HANDSHAKE: {
@@ -402,13 +414,20 @@ export function createServer(config: ServerConfig) {
       resDef.name,
       resDef.uri,
       { description: resDef.description, mimeType: resDef.mimeType },
-      async () => ({
-        contents: [{
-          uri: resDef.uri,
-          mimeType: resDef.mimeType,
-          text: await handleResourceRead(resDef.uri, client, config),
-        }],
-      }),
+      async () => {
+        try {
+          return {
+            contents: [{
+              uri: resDef.uri,
+              mimeType: resDef.mimeType,
+              text: await handleResourceRead(resDef.uri, client, config),
+            }],
+          };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new McpError(ErrorCode.InternalError, `Resource read failed for ${resDef.uri}: ${message}`);
+        }
+      },
     );
   }
 
@@ -420,13 +439,18 @@ export function createServer(config: ServerConfig) {
       { description: tmpl.description, mimeType: tmpl.mimeType },
       async (uri: URL) => {
         const fullUri = uri.toString();
-        return {
-          contents: [{
-            uri: fullUri,
-            mimeType: tmpl.mimeType,
-            text: await handleResourceRead(fullUri, client, config),
-          }],
-        };
+        try {
+          return {
+            contents: [{
+              uri: fullUri,
+              mimeType: tmpl.mimeType,
+              text: await handleResourceRead(fullUri, client, config),
+            }],
+          };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new McpError(ErrorCode.InternalError, `Resource read failed for ${fullUri}: ${message}`);
+        }
       },
     );
   }
