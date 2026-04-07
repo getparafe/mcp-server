@@ -23,6 +23,9 @@ npm test                    # Both
 
 # Run locally with stdio
 PARAFE_BROKER_URL=https://... PARAFE_API_KEY=prf_key_... node dist/bin/parafe-mcp.js
+
+# Run with HTTP transport (set PARAFE_MCP_AUTH_TOKEN for bearer auth)
+PARAFE_BROKER_URL=https://... PARAFE_API_KEY=prf_key_... PARAFE_MCP_AUTH_TOKEN=secret node dist/bin/parafe-mcp.js --transport=http
 ```
 
 Integration tests are self-bootstrapping — they create their own org + API key via `POST /auth/signup`. The only env var needed is `PARAFE_TEST_BROKER_URL` (defaults to `http://localhost:3000`).

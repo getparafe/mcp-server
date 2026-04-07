@@ -206,6 +206,11 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.INITIATE_HANDSHAKE: {
+      const modality = (args.authorization_modality as string | undefined) ?? 'autonomous';
+      if (modality !== 'autonomous' && !args.authorization_evidence) {
+        throw new Error(`authorization_evidence is required when modality is '${modality}'.`);
+      }
+
       const authorization = buildAuthorization(
         args.authorization_modality as string | undefined,
         args.authorization_evidence as { instruction?: string; platform?: string; timestamp?: string; user_signature?: string } | undefined,
@@ -228,6 +233,11 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.ESCALATE_SCOPE: {
+      const escalateModality = (args.authorization_modality as string | undefined) ?? 'autonomous';
+      if (escalateModality !== 'autonomous' && !args.authorization_evidence) {
+        throw new Error(`authorization_evidence is required when modality is '${escalateModality}'.`);
+      }
+
       const authorization = buildAuthorization(
         args.authorization_modality as string | undefined,
         args.authorization_evidence as { instruction?: string; platform?: string; timestamp?: string; user_signature?: string } | undefined,

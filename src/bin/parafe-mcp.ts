@@ -31,6 +31,7 @@ async function main() {
     console.error('Optional:');
     console.error('  PARAFE_CREDENTIALS_PATH         Path to encrypted credential file (default: ~/.parafe/credentials.enc)');
     console.error('  PARAFE_CREDENTIALS_PASSPHRASE   Passphrase for credential encryption');
+    console.error('  PARAFE_MCP_AUTH_TOKEN            Bearer token for HTTP transport authentication');
     process.exit(1);
   }
 
@@ -59,8 +60,18 @@ async function main() {
 
     await server.connect(httpTransport);
 
+    const bearerToken = process.env.PARAFE_MCP_AUTH_TOKEN;
+
     const httpServer = createHttpServer(async (req, res) => {
       if (req.url === '/mcp' || req.url?.startsWith('/mcp?')) {
+        if (bearerToken) {
+          const auth = req.headers.authorization;
+          if (!auth || auth !== `Bearer ${bearerToken}`) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+        }
         await httpTransport.handleRequest(req, res);
       } else if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
