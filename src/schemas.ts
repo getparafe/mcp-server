@@ -21,7 +21,7 @@ const scopePolicyValue = z.object({
 
 export const schemas = {
   discover: {
-    agent_card_url: z.string().describe("URL of the target agent's agent card (e.g., 'https://example.com/.well-known/agent.json'). If a base domain is provided without a path, '/.well-known/agent.json' is appended automatically."),
+    agent_card_url: z.string().describe("URL of the target agent's agent card (e.g., 'https://example.com/.well-known/agent-card.json'), or just its domain. For a bare domain, '/.well-known/agent-card.json' is tried first, then '/.well-known/agent.json'."),
   },
 
   register: {

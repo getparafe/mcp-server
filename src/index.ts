@@ -47,7 +47,15 @@ export function loadConfig(): ServerConfig {
 
 // ── Agent card discovery ──
 
-const PARAFE_EXTENSION_URI = 'https://parafe.dev/a2a-extension/v1';
+// Parafe A2A extension URIs, newest first. The v1 URIs still appear on older agent cards.
+export const PARAFE_EXTENSION_URIS = [
+  'https://parafe.ai/extensions/a2a/v2',
+  'https://github.com/getparafe/parafe-a2a-extension/v1',
+  'https://parafe.dev/a2a-extension/v1',
+];
+
+// A2A v1.0 serves the card at agent-card.json; v0.3 agents used agent.json.
+const AGENT_CARD_PATHS = ['/.well-known/agent-card.json', '/.well-known/agent.json'];
 
 interface AgentCardExtension {
   uri: string;
@@ -62,40 +70,80 @@ interface AgentCardExtension {
   [key: string]: unknown;
 }
 
-async function discoverAgentCard(url: string): Promise<Record<string, unknown>> {
-  // Auto-append well-known path if just a domain
-  let cardUrl = url;
+function candidateCardUrls(url: string): string[] {
+  // Bare domains (no scheme) get https://
+  let parsed: URL;
   try {
-    const parsed = new URL(url);
-    if (parsed.pathname === '/' || parsed.pathname === '') {
-      cardUrl = `${parsed.origin}/.well-known/agent.json`;
-    }
+    parsed = new URL(url);
   } catch {
-    // If not a valid URL, try adding protocol
-    cardUrl = `https://${url}/.well-known/agent.json`;
+    parsed = new URL(`https://${url}`);
+  }
+  // A bare origin means "find the card": try the v1.0 path, then the v0.3 path
+  if (parsed.pathname === '/' || parsed.pathname === '') {
+    return AGENT_CARD_PATHS.map((path) => `${parsed.origin}${path}`);
+  }
+  return [parsed.toString()];
+}
+
+/** The agent's A2A endpoints: v1.0 `supportedInterfaces`, or the v0.3 top-level `url`. */
+function agentInterfaces(card: Record<string, unknown>): Array<Record<string, string | null>> {
+  if (Array.isArray(card.supportedInterfaces)) {
+    return (card.supportedInterfaces as Array<Record<string, unknown>>)
+      .filter((i) => i && typeof i.url === 'string')
+      .map((i) => ({
+        url: i.url as string,
+        protocol_binding: typeof i.protocolBinding === 'string' ? i.protocolBinding : null,
+        protocol_version: typeof i.protocolVersion === 'string' ? i.protocolVersion : null,
+      }));
+  }
+  if (typeof card.url === 'string') {
+    return [{
+      url: card.url,
+      protocol_binding: typeof card.preferredTransport === 'string' ? card.preferredTransport : 'JSONRPC',
+      protocol_version: typeof card.protocolVersion === 'string' ? card.protocolVersion : null,
+    }];
+  }
+  return [];
+}
+
+export async function discoverAgentCard(url: string): Promise<Record<string, unknown>> {
+  const candidates = candidateCardUrls(url);
+
+  let res: Response | undefined;
+  let cardUrl = candidates[0]!;
+  for (cardUrl of candidates) {
+    res = await fetch(cardUrl, {
+      headers: {
+        'User-Agent': `@getparafe/mcp-server/${VERSION}`,
+        Accept: 'application/json',
+        // Without this, servers that also speak v0.3 return the v0.3 card shape
+        'A2A-Version': '1.0',
+      },
+    });
+    // Only fall through to the next well-known path when this one doesn't exist
+    if (res.status !== 404) break;
   }
 
-  const res = await fetch(cardUrl, {
-    headers: { 'User-Agent': `@getparafe/mcp-server/${VERSION}` },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch agent card from ${cardUrl}: ${res.status} ${res.statusText}`);
+  if (!res || !res.ok) {
+    throw new Error(`Failed to fetch agent card from ${cardUrl}: ${res?.status} ${res?.statusText}`);
   }
 
   const card = await res.json() as Record<string, unknown>;
+  const interfaces = agentInterfaces(card);
 
-  // Extract Parafe extension
+  // Extract Parafe extension (prefer the newest URI if a card lists more than one)
   const capabilities = card.capabilities as { extensions?: AgentCardExtension[] } | undefined;
-  const extensions = capabilities?.extensions;
-  const parafeExt = extensions?.find(
-    (ext: AgentCardExtension) => ext.uri === PARAFE_EXTENSION_URI,
-  );
+  const extensions = capabilities?.extensions ?? [];
+  const parafeExt = PARAFE_EXTENSION_URIS
+    .map((uri) => extensions.find((ext) => ext?.uri === uri))
+    .find((ext) => ext !== undefined);
 
   if (!parafeExt) {
     return {
       parafe_required: false,
       agent_name: card.name || null,
+      card_url: cardUrl,
+      interfaces,
       raw_agent_card: card,
     };
   }
@@ -108,6 +156,9 @@ async function discoverAgentCard(url: string): Promise<Record<string, unknown>> 
     broker_url: params.broker_url || null,
     minimum_identity_assurance: params.minimum_identity_assurance || null,
     scopes: params.scope_requirements || {},
+    extension_uri: parafeExt.uri,
+    card_url: cardUrl,
+    interfaces,
   };
 }
 

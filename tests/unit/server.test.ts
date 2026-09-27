@@ -6,10 +6,10 @@
  * credential lifecycle, and error handling.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from '../../src/tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from '../../src/resources.js';
-import { loadConfig, createServer, type ServerConfig } from '../../src/index.js';
+import { loadConfig, createServer, discoverAgentCard, PARAFE_EXTENSION_URIS, type ServerConfig } from '../../src/index.js';
 
 // ── Tool definition tests ──
 
@@ -288,6 +288,7 @@ describe('Tool description quality', () => {
   it('parafe_discover description should mention agent card and well-known URL', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.DISCOVER);
     expect(tool?.description).toContain('agent card');
+    expect(tool?.description).toContain('.well-known/agent-card.json');
     expect(tool?.description).toContain('.well-known/agent.json');
   });
 
@@ -318,5 +319,128 @@ describe('Tool description quality', () => {
   it('parafe_verify_consent_locally description should mention no network call', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
     expect(tool?.description).toContain('no network');
+  });
+});
+
+// ── Agent card discovery ──
+
+describe('Agent card discovery', () => {
+  const V2 = 'https://parafe.ai/extensions/a2a/v2';
+  const V1 = 'https://github.com/getparafe/parafe-a2a-extension/v1';
+  const LEGACY = 'https://parafe.dev/a2a-extension/v1';
+
+  const parafeExtension = (uri: string, agentId = 'prf_agent_shop') => ({
+    uri,
+    required: true,
+    params: {
+      agent_id: agentId,
+      broker_url: 'https://api.parafe.ai',
+      minimum_identity_assurance: 'self_registered',
+      scope_requirements: { 'order-donuts': { permissions: ['create_order'], minimum_authorization_modality: 'attested' } },
+    },
+  });
+
+  const v1Card = (extensions: unknown[]) => ({
+    name: 'Shop Agent',
+    supportedInterfaces: [
+      { url: 'https://shop.example/a2a', protocolBinding: 'JSONRPC', protocolVersion: '1.0' },
+      { url: 'https://shop.example/a2a', protocolBinding: 'JSONRPC', protocolVersion: '0.3' },
+    ],
+    capabilities: { extensions },
+  });
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+  let fetchMock: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('knows every Parafe extension URI, newest first', () => {
+    expect(PARAFE_EXTENSION_URIS).toEqual([V2, V1, LEGACY]);
+  });
+
+  it('tries the A2A v1.0 card path first and sends A2A-Version', async () => {
+    fetchMock.mockResolvedValueOnce(json(v1Card([parafeExtension(V1)])));
+
+    const result = await discoverAgentCard('https://shop.example');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://shop.example/.well-known/agent-card.json');
+    expect((init as RequestInit).headers).toMatchObject({ 'A2A-Version': '1.0' });
+    expect(result).toMatchObject({
+      parafe_required: true,
+      agent_id: 'prf_agent_shop',
+      extension_uri: V1,
+      card_url: 'https://shop.example/.well-known/agent-card.json',
+      interfaces: [
+        { url: 'https://shop.example/a2a', protocol_binding: 'JSONRPC', protocol_version: '1.0' },
+        { url: 'https://shop.example/a2a', protocol_binding: 'JSONRPC', protocol_version: '0.3' },
+      ],
+    });
+  });
+
+  it('falls back to /.well-known/agent.json for A2A v0.3 agents', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(json({
+        name: 'Old Agent',
+        url: 'https://old.example/rpc',
+        protocolVersion: '0.3',
+        capabilities: { extensions: [parafeExtension(LEGACY, 'prf_agent_old')] },
+      }));
+
+    const result = await discoverAgentCard('old.example');
+
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      'https://old.example/.well-known/agent-card.json',
+      'https://old.example/.well-known/agent.json',
+    ]);
+    expect(result).toMatchObject({
+      agent_id: 'prf_agent_old',
+      extension_uri: LEGACY,
+      card_url: 'https://old.example/.well-known/agent.json',
+      interfaces: [{ url: 'https://old.example/rpc', protocol_binding: 'JSONRPC', protocol_version: '0.3' }],
+    });
+  });
+
+  it('recognizes the v2 extension URI and prefers it when a card lists several', async () => {
+    fetchMock.mockResolvedValueOnce(json(v1Card([parafeExtension(V1, 'prf_agent_v1'), parafeExtension(V2, 'prf_agent_v2')])));
+
+    const result = await discoverAgentCard('https://shop.example');
+
+    expect(result).toMatchObject({ extension_uri: V2, agent_id: 'prf_agent_v2' });
+  });
+
+  it('reports parafe_required false when the card has no Parafe extension', async () => {
+    fetchMock.mockResolvedValueOnce(json(v1Card([{ uri: 'https://example.com/ext/other/v1' }])));
+
+    const result = await discoverAgentCard('https://shop.example');
+
+    expect(result).toMatchObject({ parafe_required: false, agent_name: 'Shop Agent' });
+    expect(result.interfaces).toHaveLength(2);
+    expect(result).toHaveProperty('raw_agent_card');
+  });
+
+  it('fetches an explicit card URL as given, without fallback', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('not found', { status: 404, statusText: 'Not Found' }));
+
+    await expect(discoverAgentCard('https://shop.example/cards/shop.json')).rejects.toThrow(
+      'Failed to fetch agent card from https://shop.example/cards/shop.json: 404',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fall back on server errors', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500, statusText: 'Internal Server Error' }));
+
+    await expect(discoverAgentCard('https://shop.example')).rejects.toThrow('500');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

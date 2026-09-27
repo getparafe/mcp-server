@@ -30,13 +30,14 @@ export const TOOL_NAMES = {
 export const TOOL_DEFINITIONS = [
   {
     name: TOOL_NAMES.DISCOVER,
-    description: `Fetch a target agent's agent card to discover its Parafe trust requirements before initiating a handshake. Agent cards are hosted at the target's well-known URL (e.g., https://example.com/.well-known/agent.json).
+    description: `Fetch a target agent's agent card to discover its Parafe trust requirements before initiating a handshake. Agent cards are hosted at the target's well-known URL: https://example.com/.well-known/agent-card.json (A2A v1.0), or /.well-known/agent.json on older A2A v0.3 agents. Pass just the domain and both are tried.
 
 This is the first step before any handshake. The agent card tells you:
 - Whether the target requires Parafe trust (look for the Parafe extension with 'required: true')
 - The target's Parafe agent ID (needed for parafe_initiate_handshake)
 - The broker URL
 - Available scopes and their requirements: what permissions each scope grants, what authorization modality is required (autonomous, attested, or verified), and what minimum identity assurance level is needed
+- The target's A2A endpoints and the A2A protocol version each one speaks (interfaces)
 
 Always discover before handshaking. The agent card tells you whether your credentials meet the target's requirements — saving a round trip if they don't.`,
     inputSchema: {
@@ -44,7 +45,7 @@ Always discover before handshaking. The agent card tells you whether your creden
       properties: {
         agent_card_url: {
           type: 'string',
-          description: "URL of the target agent's agent card (e.g., 'https://example.com/.well-known/agent.json'). If a base domain is provided without a path, '/.well-known/agent.json' is appended automatically.",
+          description: "URL of the target agent's agent card (e.g., 'https://example.com/.well-known/agent-card.json'), or just its domain. For a bare domain, '/.well-known/agent-card.json' is tried first, then '/.well-known/agent.json'.",
         },
       },
       required: ['agent_card_url'],
