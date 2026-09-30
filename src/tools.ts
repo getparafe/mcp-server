@@ -3,7 +3,7 @@
  * Each tool maps to a ParafeClient SDK method (except parafe_discover).
  */
 
-import { ParafeClient } from '@getparafe/sdk';
+import { ParafeClient, type SignAp2ReceiptOptions, type VerifyMandateOptions, type Ap2TrustedIssuer } from '@getparafe/sdk';
 
 // ── Tool name constants ──
 
@@ -28,6 +28,9 @@ export const TOOL_NAMES = {
   GET_SESSION_RECEIPT: 'parafe_get_session_receipt',
   CREATE_PRESENTATION_PROOF: 'parafe_create_presentation_proof',
   CREATE_CLAIM_LINK: 'parafe_create_claim_link',
+  VERIFY_MANDATE: 'parafe_verify_mandate',
+  SIGN_AP2_RECEIPT: 'parafe_sign_ap2_receipt',
+  RECORD_AP2_RECEIPT: 'parafe_record_ap2_receipt',
 } as const;
 
 // ── Tool definitions (name, description, inputSchema) ──
@@ -524,6 +527,106 @@ Higher tenure, completion rate, counterparty count, and handshake success rate i
       required: ['consent_token'],
     },
   },
+  {
+    name: TOOL_NAMES.VERIFY_MANDATE,
+    description: `Have the broker verify an AP2 mandate another agent presented to you, when you are the merchant (checkout mandate) or the payment processor (payment mandate). The broker checks the Delegate SD-JWT chain against the issuers you trust (trusted_issuers, plus the broker's list), every constraint, and the checkout binding.
+
+Returns valid; when invalid, the AP2 error code to put in your receipt (error, reason, violations). It also returns the receipt references, who signed the mandate (closedBy, openedBy), and the registered Parafé agent holding the mandate's agent key (agent, with isCounterparty in a session). The broker records the redemption: presenting the same mandate or checkout again gets alreadyRedeemed: true. Pass redeem: false to check without redeeming.
+
+Pass session_id to record the mandate in a session you are in: receipts in that session that name it are then marked reference_verified. Accept or reject the purchase, then answer with parafe_record_ap2_receipt (in a session) or parafe_sign_ap2_receipt: AP2 says the merchant must return a receipt either way.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        mandate: { type: 'string', description: 'The AP2 mandate as presented: the ~~-joined Delegate SD-JWT chain.' },
+        session_id: { type: 'string', description: "Optional: record the mandate in this session (you must be a participant)." },
+        agent_id: { type: 'string', description: 'Optional: the verifying agent, when no agent credential is loaded (authenticates with the API key).' },
+        checkout_jwt: { type: 'string', description: "Optional: the merchant-signed Checkout JWT, when the checkout mandate doesn't disclose it; for a payment mandate, the checkout it pays." },
+        checkout_hash: { type: 'string', description: "Payment mandate: the expected transaction_id, if you don't hold the Checkout JWT." },
+        checkout_mandate: { type: 'string', description: 'Payment mandate: the checkout mandate chain it belongs to.' },
+        expected_audience: { type: 'string', description: "Optional: the audience the presentation must name (your DID or agent ID)." },
+        expected_nonce: { type: 'string', description: 'Optional: the nonce you gave the presenter.' },
+        trusted_issuers: {
+          type: 'array',
+          description: 'Issuers you accept (their public keys), added to the broker-wide list.',
+          items: {
+            type: 'object',
+            properties: { jwk: { type: 'object' }, kid: { type: 'string' }, iss: { type: 'string' }, name: { type: 'string' } },
+            required: ['jwk'],
+          },
+        },
+        context: {
+          type: 'object',
+          description: 'Budget and recurrence mandates: what has been used so far.',
+          properties: {
+            total_amount: { type: 'number', description: 'Minor units spent so far.' },
+            total_uses: { type: 'number', description: 'Earlier uses.' },
+            last_used_at: { type: 'number', description: 'Last use, Unix seconds.' },
+          },
+        },
+        redeem: { type: 'boolean', description: 'Record the redemption (default true).' },
+      },
+      required: ['mandate'],
+    },
+  },
+  {
+    name: TOOL_NAMES.RECORD_AP2_RECEIPT,
+    description: `Sign an AP2 Checkout or Payment Receipt as your agent and file it in the session's index, in one call. Use it after you accept or reject a purchase under an AP2 mandate (see parafe_verify_mandate): AP2 says the merchant must return a receipt either way. Returns the receipt JWT (send it back to the shopping agent), its reference, and the broker's acknowledgment, which says whether the reference matches a mandate verified in the session (reference_verified).
+
+Success: a checkout receipt needs order_id; a payment receipt needs payment_id, psp_confirmation_id and network_confirmation_id. Error: pass error (the AP2 code) and error_description (a payment receipt still needs payment_id). AP2 receipts are ES256, so your agent needs a P-256 key (parafe_register with key_algorithm 'P-256'). File before the session is closed.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        session_id: { type: 'string', description: 'The session the purchase happened in.' },
+        kind: { type: 'string', enum: ['checkout', 'payment'], description: "'checkout' answers a checkout mandate, 'payment' a payment mandate." },
+        mandate: { type: 'string', description: 'The mandate the receipt answers, as presented (the ~~-joined Delegate SD-JWT chain). Or pass references.' },
+        references: {
+          type: 'object',
+          description: 'Instead of mandate: its references, as returned by parafe_verify_mandate.',
+          properties: { sdHash: { type: 'string' }, closedJwt: { type: 'string' } },
+          required: ['sdHash', 'closedJwt'],
+        },
+        reference_form: { type: 'string', enum: ['closed_jwt', 'sd_hash'], description: "Which reference goes in the receipt. Default 'closed_jwt' (what the AP2 SDK checks)." },
+        iss: { type: 'string', description: "The receipt's issuer (the merchant or payment processor). Default: your agent's DID." },
+        status: { type: 'string', enum: ['Success', 'Error'], description: "Default 'Success', or 'Error' when error is set." },
+        error: { type: 'string', description: "Error receipts: the AP2 error code, e.g. parafe_verify_mandate's error (invalid_credential, unresolved_constraint, invalid_mandate, mandates_not_supported)." },
+        error_description: { type: 'string', description: 'Error receipts: a short human-readable reason. Required with error.' },
+        order_id: { type: 'string', description: 'Checkout, Success: your order ID. Required.' },
+        payment_id: { type: 'string', description: 'Payment: the payment ID. Required.' },
+        psp_confirmation_id: { type: 'string', description: 'Payment, Success: the payment processor confirmation. Required.' },
+        network_confirmation_id: { type: 'string', description: 'Payment, Success: the card network confirmation. Required.' },
+      },
+      required: ['session_id', 'kind'],
+    },
+  },
+  {
+    name: TOOL_NAMES.SIGN_AP2_RECEIPT,
+    description: `Sign an AP2 Checkout or Payment Receipt as your agent without filing it anywhere: for a purchase outside a Parafé session. In a session, use parafe_record_ap2_receipt instead, so the receipt is on the session receipt. Returns the receipt JWT to send back to the shopping agent, and its reference.
+
+Same fields as parafe_record_ap2_receipt: a Success checkout receipt needs order_id; a payment receipt needs payment_id (and, for Success, psp_confirmation_id and network_confirmation_id); an Error receipt needs error and error_description. Needs a P-256 agent key.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        kind: { type: 'string', enum: ['checkout', 'payment'], description: "'checkout' answers a checkout mandate, 'payment' a payment mandate." },
+        mandate: { type: 'string', description: 'The mandate the receipt answers, as presented (the ~~-joined Delegate SD-JWT chain). Or pass references.' },
+        references: {
+          type: 'object',
+          description: 'Instead of mandate: its references, as returned by parafe_verify_mandate.',
+          properties: { sdHash: { type: 'string' }, closedJwt: { type: 'string' } },
+          required: ['sdHash', 'closedJwt'],
+        },
+        reference_form: { type: 'string', enum: ['closed_jwt', 'sd_hash'], description: "Which reference goes in the receipt. Default 'closed_jwt' (what the AP2 SDK checks)." },
+        iss: { type: 'string', description: "The receipt's issuer (the merchant or payment processor). Default: your agent's DID." },
+        status: { type: 'string', enum: ['Success', 'Error'], description: "Default 'Success', or 'Error' when error is set." },
+        error: { type: 'string', description: "Error receipts: the AP2 error code, e.g. parafe_verify_mandate's error (invalid_credential, unresolved_constraint, invalid_mandate, mandates_not_supported)." },
+        error_description: { type: 'string', description: 'Error receipts: a short human-readable reason. Required with error.' },
+        order_id: { type: 'string', description: 'Checkout, Success: your order ID. Required.' },
+        payment_id: { type: 'string', description: 'Payment: the payment ID. Required.' },
+        psp_confirmation_id: { type: 'string', description: 'Payment, Success: the payment processor confirmation. Required.' },
+        network_confirmation_id: { type: 'string', description: 'Payment, Success: the card network confirmation. Required.' },
+      },
+      required: ['kind'],
+    },
+  },
 ];
 
 // ── Authorization builder helper ──
@@ -560,4 +663,47 @@ export function buildAuthorization(modality?: string, evidence?: AuthorizationEv
     return modality === 'delegated' ? ParafeClient.authorization.delegated(opts) : ParafeClient.authorization.verified(opts);
   }
   throw new Error(`Unknown authorization modality '${modality}'`);
+}
+
+// ── AP2 argument mapping (snake_case tool arguments to SDK options) ──
+
+type Args = Record<string, unknown>;
+const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+
+export function buildVerifyMandateOptions(args: Args): VerifyMandateOptions {
+  const context = args.context as { total_amount?: number; total_uses?: number; last_used_at?: number } | undefined;
+  const opts: VerifyMandateOptions = { mandate: String(args.mandate ?? '') };
+  if (str(args.session_id)) opts.sessionId = str(args.session_id);
+  if (str(args.agent_id)) opts.agentId = str(args.agent_id);
+  if (str(args.checkout_jwt)) opts.checkoutJwt = str(args.checkout_jwt);
+  if (str(args.checkout_hash)) opts.checkoutHash = str(args.checkout_hash);
+  if (str(args.checkout_mandate)) opts.checkoutMandate = str(args.checkout_mandate);
+  if (str(args.expected_audience)) opts.expectedAudience = str(args.expected_audience);
+  if (str(args.expected_nonce)) opts.expectedNonce = str(args.expected_nonce);
+  if (Array.isArray(args.trusted_issuers)) opts.trustedIssuers = args.trusted_issuers as Ap2TrustedIssuer[];
+  if (context) {
+    opts.context = {
+      ...(context.total_amount !== undefined ? { totalAmount: context.total_amount } : {}),
+      ...(context.total_uses !== undefined ? { totalUses: context.total_uses } : {}),
+      ...(context.last_used_at !== undefined ? { lastUsedAt: context.last_used_at } : {}),
+    };
+  }
+  if (typeof args.redeem === 'boolean') opts.redeem = args.redeem;
+  return opts;
+}
+
+export function buildAp2ReceiptOptions(args: Args): SignAp2ReceiptOptions {
+  const opts: SignAp2ReceiptOptions = { kind: args.kind as 'checkout' | 'payment' };
+  if (str(args.mandate)) opts.mandate = str(args.mandate);
+  if (args.references) opts.references = args.references as SignAp2ReceiptOptions['references'];
+  if (str(args.reference_form)) opts.referenceForm = args.reference_form as 'closed_jwt' | 'sd_hash';
+  if (str(args.iss)) opts.iss = str(args.iss);
+  if (str(args.status)) opts.status = args.status as 'Success' | 'Error';
+  if (str(args.error)) opts.error = str(args.error);
+  if (str(args.error_description)) opts.errorDescription = str(args.error_description);
+  if (str(args.order_id)) opts.orderId = str(args.order_id);
+  if (str(args.payment_id)) opts.paymentId = str(args.payment_id);
+  if (str(args.psp_confirmation_id)) opts.pspConfirmationId = str(args.psp_confirmation_id);
+  if (str(args.network_confirmation_id)) opts.networkConfirmationId = str(args.network_confirmation_id);
+  return opts;
 }

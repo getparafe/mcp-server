@@ -39,6 +39,21 @@ const scopePolicyValue = z.object({
   description: z.string().optional().describe('Informational; never enforced.'),
 }).strict();
 
+const ap2Receipt = {
+  kind: z.enum(['checkout', 'payment']).describe("'checkout' answers a checkout mandate, 'payment' a payment mandate."),
+  mandate: z.string().optional().describe('The mandate the receipt answers, as presented. Or pass references.'),
+  references: z.object({ sdHash: z.string(), closedJwt: z.string() }).optional().describe('Instead of mandate: its references, as returned by parafe_verify_mandate.'),
+  reference_form: z.enum(['closed_jwt', 'sd_hash']).optional().describe("Default 'closed_jwt' (what the AP2 SDK checks)."),
+  iss: z.string().optional().describe("The receipt's issuer (the merchant or payment processor). Default: your agent's DID."),
+  status: z.enum(['Success', 'Error']).optional().describe("Default 'Success', or 'Error' when error is set."),
+  error: z.string().optional().describe('Error receipts: the AP2 error code, e.g. from parafe_verify_mandate.'),
+  error_description: z.string().optional().describe('Error receipts: a short human-readable reason. Required with error.'),
+  order_id: z.string().optional().describe('Checkout, Success: your order ID. Required.'),
+  payment_id: z.string().optional().describe('Payment: the payment ID. Required.'),
+  psp_confirmation_id: z.string().optional().describe('Payment, Success: the payment processor confirmation. Required.'),
+  network_confirmation_id: z.string().optional().describe('Payment, Success: the card network confirmation. Required.'),
+};
+
 export const schemas = {
   discover: {
     agent_card_url: z.string().describe("URL of the target agent's agent card (e.g., 'https://example.com/.well-known/agent-card.json'), or just its domain. For a bare domain, '/.well-known/agent-card.json' is tried first, then '/.well-known/agent.json'."),
@@ -142,6 +157,31 @@ export const schemas = {
     consent_token: z.string().describe('The consent token you are presenting.'),
     message_id: z.string().optional().describe('Optional: the ID of the A2A message the token travels in.'),
   },
+
+  verify_mandate: {
+    mandate: z.string().min(1).describe('The AP2 mandate as presented: the ~~-joined Delegate SD-JWT chain.'),
+    session_id: z.string().optional().describe('Optional: record the mandate in this session (you must be a participant).'),
+    agent_id: z.string().regex(/^prf_agent_/, 'agent_id must start with "prf_agent_"').optional().describe('Optional: the verifying agent, when no agent credential is loaded.'),
+    checkout_jwt: z.string().optional().describe("Optional: the merchant-signed Checkout JWT; for a payment mandate, the checkout it pays."),
+    checkout_hash: z.string().optional().describe("Payment mandate: the expected transaction_id, if you don't hold the Checkout JWT."),
+    checkout_mandate: z.string().optional().describe('Payment mandate: the checkout mandate chain it belongs to.'),
+    expected_audience: z.string().optional().describe('Optional: the audience the presentation must name.'),
+    expected_nonce: z.string().optional().describe('Optional: the nonce you gave the presenter.'),
+    trusted_issuers: z.array(trustedIssuer).optional().describe("Issuers you accept (their public keys), added to the broker-wide list."),
+    context: z.object({
+      total_amount: z.number().int().min(0).optional().describe('Minor units spent so far.'),
+      total_uses: z.number().int().min(0).optional().describe('Earlier uses.'),
+      last_used_at: z.number().int().min(0).optional().describe('Last use, Unix seconds.'),
+    }).strict().optional().describe('Budget and recurrence mandates: what has been used so far.'),
+    redeem: z.boolean().optional().describe('Record the redemption (default true).'),
+  },
+
+  record_ap2_receipt: {
+    session_id: z.string().describe('The session the purchase happened in.'),
+    ...ap2Receipt,
+  },
+
+  sign_ap2_receipt: ap2Receipt,
 
   get_agent_metrics: {
     agent_id: z.string().regex(/^prf_agent_/, 'agent_id must start with "prf_agent_"').describe("Parafe agent ID to get metrics for (starts with 'prf_agent_')."),

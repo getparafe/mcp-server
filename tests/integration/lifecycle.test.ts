@@ -183,3 +183,73 @@ describe('parafe_verify_consent_locally', () => {
     ).rejects.toThrow();
   });
 });
+
+// ── AP2 tools, through the MCP protocol (0.8.0) ──
+
+describe('AP2 tools', () => {
+  let apiKeyShopper: string;
+  let apiKeyShop: string;
+
+  beforeAll(async () => {
+    [apiKeyShopper, apiKeyShop] = await Promise.all([bootstrap('ap2shopper'), bootstrap('ap2shop')]);
+  });
+
+  it('verify_mandate reports an invalid mandate; sign/record_ap2_receipt sign and file receipts', async () => {
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+    const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+    const part = (jwt: string, i: number) => JSON.parse(Buffer.from(jwt.split('.')[i]!, 'base64url').toString());
+    const decodeProtectedHeader = (jwt: string) => part(jwt, 0);
+    const decodeJwt = (jwt: string) => part(jwt, 1);
+
+    const shopper = createServer({ brokerUrl: BROKER_URL, apiKey: apiKeyShopper, credentialsPath: '/tmp/test-mcp-ap2-a.enc' });
+    const shop = createServer({ brokerUrl: BROKER_URL, apiKey: apiKeyShop, credentialsPath: '/tmp/test-mcp-ap2-b.enc' });
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+    await shop.server.connect(serverSide);
+    const mcp = new Client({ name: 'test', version: '0' });
+    await mcp.connect(clientSide);
+    const call = async (name: string, args: Record<string, unknown>) => {
+      const r = await mcp.callTool({ name, arguments: args }) as { content: Array<{ text: string }>; isError?: boolean };
+      return { isError: !!r.isError, body: JSON.parse(r.content[0]!.text) };
+    };
+
+    const suffix = Date.now().toString(36);
+    await shopper.client.register({ name: `mcp-ap2-shopper-${suffix}`, type: 'personal', owner: 'test' });
+    const shopReg = await call('parafe_register', { name: `mcp-ap2-shop-${suffix}`, type: 'enterprise', owner: 'test', key_algorithm: 'P-256' });
+    expect(shopReg.isError).toBe(false);
+
+    const hs = await shopper.client.handshake({ targetAgentId: shopReg.body.agentId, scope: 'shop', permissions: ['buy'], authorization: { modality: 'autonomous' } });
+    const session = await shop.client.completeHandshake({ handshakeId: hs.handshakeId, challengeNonce: hs.challengeForTarget });
+
+    // A malformed mandate: the broker answers with the AP2 error code for the receipt, or refuses it.
+    const bad = await call('parafe_verify_mandate', { mandate: 'not-a-mandate', session_id: session.sessionId, redeem: false });
+    if (bad.isError) expect(bad.body.statusCode).toBe(400);
+    else expect(bad.body).toMatchObject({ valid: false });
+
+    const references = { sdHash: 'a'.repeat(43), closedJwt: 'b'.repeat(43) };
+
+    // Sign only: an ES256 AP2 Checkout Receipt, not filed.
+    const signed = await call('parafe_sign_ap2_receipt', { kind: 'checkout', references, order_id: 'ord_1' });
+    expect(signed.isError).toBe(false);
+    expect(signed.body.kind).toBe('ap2.checkout_receipt');
+    expect(decodeProtectedHeader(signed.body.receipt).alg).toBe('ES256');
+    expect(decodeJwt(signed.body.receipt)).toMatchObject({ status: 'Success', order_id: 'ord_1', reference: references.closedJwt });
+
+    // Missing required fields are refused before anything is signed.
+    const noOrder = await call('parafe_sign_ap2_receipt', { kind: 'checkout', references });
+    expect(noOrder.isError).toBe(true);
+    expect(noOrder.body.error).toContain('orderId');
+
+    // Record: an Error receipt, signed and filed in the session's index.
+    const recorded = await call('parafe_record_ap2_receipt', {
+      session_id: session.sessionId, kind: 'checkout', references, reference_form: 'sd_hash',
+      error: 'invalid_mandate', error_description: 'Mandate did not verify',
+    });
+    expect(recorded.isError).toBe(false);
+    expect(decodeJwt(recorded.body.receipt)).toMatchObject({ status: 'Error', error: 'invalid_mandate', reference: references.sdHash });
+    expect(recorded.body.ack.seq).toBe(1);
+    const index = await shopper.client.getActionReceipts(session.sessionId);
+    expect(index.entries.map((e) => e.kind)).toEqual(['ap2.checkout_receipt']);
+
+    await mcp.close();
+  });
+});
