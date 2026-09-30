@@ -14,7 +14,9 @@ export const TOOL_NAMES = {
   COMPLETE_HANDSHAKE: 'parafe_complete_handshake',
   ESCALATE_SCOPE: 'parafe_escalate_scope',
   VERIFY_CONSENT: 'parafe_verify_consent',
-  RECORD_ACTION: 'parafe_record_action',
+  RECORD_ACTION_RECEIPT: 'parafe_record_action_receipt',
+  FILE_ACTION_RECEIPT: 'parafe_file_action_receipt',
+  GET_ACTION_RECEIPTS: 'parafe_get_action_receipts',
   CLOSE_SESSION: 'parafe_close_session',
   VERIFY_RECEIPT: 'parafe_verify_receipt',
   REVOKE_AGENT: 'parafe_revoke_agent',
@@ -247,40 +249,64 @@ Returns whether the action is permitted, and if not, why (e.g., action is in the
     },
   },
   {
-    name: TOOL_NAMES.RECORD_ACTION,
-    description: `Log an action you're performing within an active session. The broker records it on the session and counts it in your reputation signals. It does not appear on the session's signed receipt yet (per-action receipts are planned).
+    name: TOOL_NAMES.RECORD_ACTION_RECEIPT,
+    description: `Record what you did (or refused) in a session with a signed action receipt. You sign it with your agent's key, bound to the consent token you were asked under, and the broker adds it to the session's index; the session receipt lists every action receipt. Returns the receipt (a JWS: send it back to the other agent) and the broker's signed acknowledgment.
 
-Record each significant action you take during the interaction. If a consent token is provided, the broker validates that the action is within scope and rejects it if not.`,
+Call it after each action you perform for the other agent: result 'success', or result 'error' with error 'failed' if you tried and it failed. Call it too when you refuse a request because the consent token doesn't allow it: result 'error' with error 'excluded' (the action is excluded), 'not_permitted' (not in the token's permissions), 'consent_expired', 'consent_invalid' or 'proof_invalid'. Do this before the session is closed. The broker sees the action name, the result and business_ref, never details (only their hash).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
-        session_id: {
+        session_id: { type: 'string', description: 'Active session ID.' },
+        consent_token: { type: 'string', description: 'The consent token the action was requested under.' },
+        action: { type: 'string', description: "The action, e.g. a permission name such as 'create_order'." },
+        result: { type: 'string', enum: ['success', 'error'], description: "Default 'success'." },
+        error: {
           type: 'string',
-          description: 'Active session ID.',
+          enum: ['not_permitted', 'excluded', 'consent_invalid', 'consent_expired', 'proof_invalid', 'failed'],
+          description: "Required when result is 'error': why it was refused or failed.",
         },
-        action: {
+        error_description: { type: 'string', description: 'Optional: a short human-readable reason.' },
+        details: { type: 'object', description: 'Optional details of what was done. Only their hash goes on the receipt.' },
+        business_ref: { type: 'string', description: 'Optional: your reference for the outcome, e.g. an order ID (visible to the broker).' },
+      },
+      required: ['session_id', 'consent_token', 'action'],
+    },
+  },
+  {
+    name: TOOL_NAMES.FILE_ACTION_RECEIPT,
+    description: `File an action receipt the other agent gave you (or an AP2 Checkout/Payment Receipt, with its kind) in the session's index, so it is on the session receipt even if the other agent never files it. Filing the same receipt twice is harmless: you get the original acknowledgment back (duplicate: true). File before the session is closed.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        session_id: { type: 'string', description: 'Session ID.' },
+        receipt: { type: 'string', description: 'The receipt JWS, exactly as received.' },
+        kind: {
           type: 'string',
-          description: 'Action being performed (should match a permission from the consent token).',
-        },
-        details: {
-          type: 'object',
-          description: 'Optional details about the action (e.g., booking reference, data accessed).',
-        },
-        consent_token: {
-          type: 'string',
-          description: 'Optional consent token. If provided, the broker validates the action is within scope.',
+          enum: ['parafe.action_receipt', 'ap2.checkout_receipt', 'ap2.payment_receipt'],
+          description: "Default 'parafe.action_receipt'.",
         },
       },
-      required: ['session_id', 'action'],
+      required: ['session_id', 'receipt'],
+    },
+  },
+  {
+    name: TOOL_NAMES.GET_ACTION_RECEIPTS,
+    description: `List a session's index: every action receipt filed so far (who signed it, the action, the result, the broker's acknowledgment) and the chain head. Either participant can, before or after close.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        session_id: { type: 'string', description: "Session ID (starts with 'sess_')." },
+      },
+      required: ['session_id'],
     },
   },
   {
     name: TOOL_NAMES.CLOSE_SESSION,
-    description: `Close an active session and get its signed receipt. The receipt ('receipt' field) is a compact JWS signed by the broker (ES256): who participated, mutual authentication, every consent token issued in the session (scope, permissions, exclusions, authorization modality, how the initiator proved itself), and when. The human's instruction and the handshake context appear only as hashes. It does not list recorded actions yet (per-action receipts are planned). The other fields are a readable copy decoded from the JWS.
+    description: `Close an active session and get its signed receipt. The receipt ('receipt' field) is a compact JWS signed by the broker (ES256): who participated, mutual authentication, every consent token issued in the session (scope, permissions, exclusions, authorization modality, how the initiator proved itself), and when. The human's instruction and the handshake context appear only as hashes. It lists every action receipt filed in the session (see parafe_record_action_receipt) and the index's chain head. The other fields are a readable copy decoded from the JWS.
 
 Either participant may close; the other one can fetch the same receipt with parafe_get_session_receipt. Anyone holding the JWS can independently verify it against the broker's published keys. It serves as neutral, tamper-proof evidence of the session's trust context.
 
-Always close sessions when the interaction is complete.`,
+Always close sessions when the interaction is complete, after filing your action receipts: receipts filed after close are refused.`,
     inputSchema: {
       type: 'object' as const,
       properties: {

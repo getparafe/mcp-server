@@ -9,7 +9,7 @@ MCP tool server for the Parafe Trust Broker. Wraps `@getparafe/sdk` to expose tr
 - `src/schemas.ts` — Zod schemas for tool parameters (required by MCP SDK)
 - `src/resources.ts` — MCP resource definitions
 - `src/bin/parafe-mcp.ts` — CLI entry point for `npx` execution
-- `tests/unit/server.test.ts` — Unit tests (46 tests, no network)
+- `tests/unit/server.test.ts` — Unit tests (no network)
 - `tests/integration/lifecycle.test.ts` — Integration tests (4 tests, self-bootstrapping against live broker)
 
 ## Running
@@ -36,7 +36,7 @@ Integration tests are self-bootstrapping — they create their own org + API key
 - **Zod schemas** — MCP SDK requires Zod for parameter validation. Schemas in `src/schemas.ts`.
 - **Tool descriptions** — written so an LLM knows when/how to use each tool without external docs. These are in `src/tools.ts`.
 - **Credential lifecycle** — auto-loads on startup if passphrase is set, auto-saves after registration.
-- **`parafe_record_action`** auto-populates `agentId` from loaded credentials (the MCP user doesn't need to pass it).
+- **Action receipts (0.6.0)** — `parafe_record_action_receipt` signs with the loaded agent's key and files it; `parafe_file_action_receipt` files the other agent's copy (a duplicate returns the original acknowledgment); `parafe_get_action_receipts` lists the index. `parafe_record_action` (`/interaction/record`) was removed.
 
 ## When Making Changes
 

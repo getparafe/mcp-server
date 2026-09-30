@@ -14,8 +14,21 @@ import { loadConfig, createServer, discoverAgentCard, PARAFE_EXTENSION_URIS, typ
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 18 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(18);
+  it('should define exactly 20 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(20);
+  });
+
+  it('replaces parafe_record_action with action receipt tools (0.6.0)', () => {
+    const names = TOOL_DEFINITIONS.map((t) => t.name);
+    expect(names).not.toContain('parafe_record_action');
+    const record = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.RECORD_ACTION_RECEIPT);
+    expect(record?.inputSchema.required).toEqual(['session_id', 'consent_token', 'action']);
+    expect(record?.description).toContain('excluded');
+    expect(record?.description).toContain('before the session is closed');
+    const file = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.FILE_ACTION_RECEIPT);
+    expect(file?.inputSchema.required).toEqual(['session_id', 'receipt']);
+    const list = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.GET_ACTION_RECEIPTS);
+    expect(list?.inputSchema.required).toEqual(['session_id']);
   });
 
   it('adds parafe_get_session_receipt and parafe_create_presentation_proof (0.4.0)', () => {
@@ -38,7 +51,9 @@ describe('Tool definitions', () => {
     expect(names).toContain(TOOL_NAMES.COMPLETE_HANDSHAKE);
     expect(names).toContain(TOOL_NAMES.ESCALATE_SCOPE);
     expect(names).toContain(TOOL_NAMES.VERIFY_CONSENT);
-    expect(names).toContain(TOOL_NAMES.RECORD_ACTION);
+    expect(names).toContain(TOOL_NAMES.RECORD_ACTION_RECEIPT);
+    expect(names).toContain(TOOL_NAMES.FILE_ACTION_RECEIPT);
+    expect(names).toContain(TOOL_NAMES.GET_ACTION_RECEIPTS);
     expect(names).toContain(TOOL_NAMES.CLOSE_SESSION);
     expect(names).toContain(TOOL_NAMES.VERIFY_RECEIPT);
     expect(names).toContain(TOOL_NAMES.REVOKE_AGENT);
@@ -331,11 +346,11 @@ describe('Tool description quality', () => {
     expect(tool?.description).toContain('no broker round-trip');
   });
 
-  it('receipt descriptions describe the JWS receipt and exclusions, and do not claim actions are listed', () => {
+  it('receipt descriptions describe the JWS receipt, exclusions and the action receipts it lists', () => {
     const close = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.CLOSE_SESSION);
     expect(close?.description).toContain('JWS');
     expect(close?.description).toContain('exclusions');
-    expect(close?.description).toContain('does not list recorded actions');
+    expect(close?.description).toContain('every action receipt filed');
   });
 });
 

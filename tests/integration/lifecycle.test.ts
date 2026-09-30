@@ -139,19 +139,23 @@ describe('Trust lifecycle', () => {
     expect(localVerify.valid).toBe(true);
     expect(localVerify.keyThumbprint).toBeTruthy();
 
-    // Record an action
-    await clientA.recordAction({
+    // Agent B receipts the action it performed; Agent A files its copy (a duplicate: same acknowledgment)
+    const recorded = await clientB.recordActionReceipt({
       sessionId: session.sessionId,
-      agentId: regA.agentId,
+      consentToken: session.consentToken.token,
       action: 'read',
       details: { resource: 'test-resource' },
     });
+    expect(recorded.ack.seq).toBe(1);
+    expect((await clientA.fileActionReceipt(session.sessionId, recorded.receipt)).duplicate).toBe(true);
+    expect((await clientA.getActionReceipts(session.sessionId)).entries).toHaveLength(1);
 
     // Close the session and get a receipt
     const receipt = await clientA.closeSession(session.sessionId);
     expect(receipt).toBeDefined();
     expect(receipt.receiptId).toBeDefined();
     expect(receipt.receipt.split(".")).toHaveLength(3); // the receipt is a JWS
+    expect(receipt.actions.map((a) => a.action)).toEqual(['read']);
     expect((await clientB.getReceipt(session.sessionId) as { receipt: string }).receipt).toBe(receipt.receipt);
 
     // Verify the receipt signature

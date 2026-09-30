@@ -70,13 +70,13 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
 
 ### 3. Use It
 
-Your agent now has 18 trust tools. The typical flow:
+Your agent now has 20 trust tools. The typical flow:
 
 1. **Discover** — `parafe_discover` fetches the target agent's agent card to learn its trust requirements
 2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
 3. **Handshake** — `parafe_initiate_handshake` starts mutual authentication; the target calls `parafe_complete_handshake`
-4. **Interact** — `parafe_verify_consent` and `parafe_record_action` govern the scoped exchange
-5. **Close** — `parafe_close_session` generates a signed receipt (a JWS) of the session's trust context, verifiable by anyone who holds it; the other participant fetches it with `parafe_get_session_receipt`
+4. **Interact** — `parafe_verify_consent` checks each request; after each action you perform or refuse, `parafe_record_action_receipt` signs an action receipt and files it in the session's index (`parafe_file_action_receipt` files the other agent's copy)
+5. **Close** — `parafe_close_session` generates a signed receipt (a JWS) of the session's trust context and every action receipt filed, verifiable by anyone who holds it; the other participant fetches it with `parafe_get_session_receipt`
 
 ## Environment Variables
 
@@ -97,7 +97,9 @@ Your agent now has 18 trust tools. The typical flow:
 | `parafe_complete_handshake` | Complete a handshake initiated by another agent |
 | `parafe_escalate_scope` | Request additional scope within an existing session |
 | `parafe_verify_consent` | Check if an action is permitted by a consent token (and, with `presentation_proof`, that it's presented by its rightful holder) |
-| `parafe_record_action` | Log an action within an active session |
+| `parafe_record_action_receipt` | Sign an action receipt for what you did or refused, and file it in the session's index |
+| `parafe_file_action_receipt` | File the other agent's action receipt (or an AP2 receipt) in the session's index |
+| `parafe_get_action_receipts` | List the session's index (either participant) |
 | `parafe_create_claim_link` | A claim link for an agent registered without an API key: the person it acts for opens it and approves, and the agent becomes theirs |
 | `parafe_close_session` | Close a session and generate a signed receipt |
 | `parafe_get_session_receipt` | Fetch a closed session's receipt (either participant) |

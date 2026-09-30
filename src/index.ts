@@ -7,7 +7,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { ParafeClient, ParafeError } from '@getparafe/sdk';
+import { ParafeClient, ParafeError, type ActionErrorCode, type ReceiptKind } from '@getparafe/sdk';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from './tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from './resources.js';
 import { schemas } from './schemas.js';
@@ -317,19 +317,32 @@ async function handleToolCall(
       });
     }
 
-    case TOOL_NAMES.RECORD_ACTION: {
-      const status = client.credentialStatus();
-      if (!status.loaded) {
+    case TOOL_NAMES.RECORD_ACTION_RECEIPT: {
+      if (!client.credentialStatus().loaded) {
         throw new Error('No credentials loaded. Register an agent first using parafe_register.');
       }
-
-      return client.recordAction({
+      const result = (args.result as 'success' | 'error' | undefined) ?? 'success';
+      if (result === 'error' && !args.error) {
+        throw new Error("result 'error' needs error: not_permitted, excluded, consent_invalid, consent_expired, proof_invalid or failed");
+      }
+      return client.recordActionReceipt({
         sessionId: args.session_id as string,
-        agentId: status.agentId,
+        consentToken: args.consent_token as string,
         action: args.action as string,
-        details: args.details as Record<string, unknown> | undefined,
-        consentToken: args.consent_token as string | undefined,
+        result,
+        ...(result === 'error' ? { error: args.error as ActionErrorCode } : {}),
+        ...(args.error_description ? { errorDescription: args.error_description as string } : {}),
+        ...(args.details ? { details: args.details } : {}),
+        ...(args.business_ref ? { businessRef: args.business_ref as string } : {}),
       });
+    }
+
+    case TOOL_NAMES.FILE_ACTION_RECEIPT: {
+      return client.fileActionReceipt(args.session_id as string, args.receipt as string, args.kind ? { kind: args.kind as ReceiptKind } : {});
+    }
+
+    case TOOL_NAMES.GET_ACTION_RECEIPTS: {
+      return client.getActionReceipts(args.session_id as string);
     }
 
     case TOOL_NAMES.CLOSE_SESSION: {
@@ -482,7 +495,9 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.COMPLETE_HANDSHAKE, desc(TOOL_NAMES.COMPLETE_HANDSHAKE), schemas.complete_handshake, h(TOOL_NAMES.COMPLETE_HANDSHAKE));
   server.tool(TOOL_NAMES.ESCALATE_SCOPE, desc(TOOL_NAMES.ESCALATE_SCOPE), schemas.escalate_scope, h(TOOL_NAMES.ESCALATE_SCOPE));
   server.tool(TOOL_NAMES.VERIFY_CONSENT, desc(TOOL_NAMES.VERIFY_CONSENT), schemas.verify_consent, h(TOOL_NAMES.VERIFY_CONSENT));
-  server.tool(TOOL_NAMES.RECORD_ACTION, desc(TOOL_NAMES.RECORD_ACTION), schemas.record_action, h(TOOL_NAMES.RECORD_ACTION));
+  server.tool(TOOL_NAMES.RECORD_ACTION_RECEIPT, desc(TOOL_NAMES.RECORD_ACTION_RECEIPT), schemas.record_action_receipt, h(TOOL_NAMES.RECORD_ACTION_RECEIPT));
+  server.tool(TOOL_NAMES.FILE_ACTION_RECEIPT, desc(TOOL_NAMES.FILE_ACTION_RECEIPT), schemas.file_action_receipt, h(TOOL_NAMES.FILE_ACTION_RECEIPT));
+  server.tool(TOOL_NAMES.GET_ACTION_RECEIPTS, desc(TOOL_NAMES.GET_ACTION_RECEIPTS), schemas.get_action_receipts, h(TOOL_NAMES.GET_ACTION_RECEIPTS));
   server.tool(TOOL_NAMES.CLOSE_SESSION, desc(TOOL_NAMES.CLOSE_SESSION), schemas.close_session, h(TOOL_NAMES.CLOSE_SESSION));
   server.tool(TOOL_NAMES.VERIFY_RECEIPT, desc(TOOL_NAMES.VERIFY_RECEIPT), schemas.verify_receipt, h(TOOL_NAMES.VERIFY_RECEIPT));
   server.tool(TOOL_NAMES.REVOKE_AGENT, desc(TOOL_NAMES.REVOKE_AGENT), schemas.revoke_agent, h(TOOL_NAMES.REVOKE_AGENT));

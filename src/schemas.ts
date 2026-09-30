@@ -64,11 +64,26 @@ export const schemas = {
     presentation_proof: z.string().optional().describe('Optional: the presentation proof the initiator sent with the token.'),
   },
 
-  record_action: {
+  record_action_receipt: {
     session_id: z.string().describe('Active session ID.'),
-    action: z.string().describe('Action being performed (should match a permission from the consent token).'),
-    details: z.record(z.string(), z.unknown()).optional().describe('Optional details about the action (e.g., booking reference, data accessed).'),
-    consent_token: z.string().optional().describe('Optional consent token. If provided, the broker validates the action is within scope.'),
+    consent_token: z.string().describe('The consent token the action was requested under.'),
+    action: z.string().min(1).max(128).describe("The action, e.g. a permission name such as 'create_order'."),
+    result: z.enum(['success', 'error']).optional().describe("Default 'success'."),
+    error: z.enum(['not_permitted', 'excluded', 'consent_invalid', 'consent_expired', 'proof_invalid', 'failed']).optional()
+      .describe("Required when result is 'error': why it was refused or failed."),
+    error_description: z.string().max(500).optional().describe('Optional: a short human-readable reason.'),
+    details: z.record(z.string(), z.unknown()).optional().describe('Optional details of what was done. Only their hash goes on the receipt.'),
+    business_ref: z.string().max(256).optional().describe('Optional: your reference for the outcome, e.g. an order ID.'),
+  },
+
+  file_action_receipt: {
+    session_id: z.string().describe('Session ID.'),
+    receipt: z.string().describe('The receipt JWS, exactly as received.'),
+    kind: z.enum(['parafe.action_receipt', 'ap2.checkout_receipt', 'ap2.payment_receipt']).optional().describe("Default 'parafe.action_receipt'."),
+  },
+
+  get_action_receipts: {
+    session_id: z.string().describe("Session ID (starts with 'sess_')."),
   },
 
   close_session: {
