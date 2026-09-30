@@ -227,9 +227,14 @@ async function handleToolCall(
           permissions?: string[];
           exclusions?: string[];
           minimum_authorization_modality?: 'autonomous' | 'attested' | 'verified';
-          minimum_identity_assurance?: 'self_registered' | 'registered';
+          minimum_identity_assurance?: 'self_registered' | 'registered' | 'claimed';
           minimum_verification_tier?: 'unverified' | 'email_verified' | 'domain_verified' | 'org_verified';
           minimum_initiator_proof?: 'pop' | 'credential';
+          minimum_tenure_days?: number;
+          minimum_session_completion_rate?: number;
+          maximum_denied_requests_30d?: number;
+          minimum_unique_counterparties?: number;
+          minimum_handshake_success_rate?: number;
           description?: string;
         }> | undefined,
       });

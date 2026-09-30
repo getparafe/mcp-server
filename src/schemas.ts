@@ -15,9 +15,14 @@ const scopePolicyValue = z.object({
   permissions: z.array(z.string()),
   exclusions: z.array(z.string()).optional(),
   minimum_authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional(),
-  minimum_identity_assurance: z.enum(['self_registered', 'registered']).optional(),
+  minimum_identity_assurance: z.enum(['self_registered', 'registered', 'claimed']).optional(),
   minimum_verification_tier: z.enum(['unverified', 'email_verified', 'domain_verified', 'org_verified']).optional(),
   minimum_initiator_proof: z.enum(['pop', 'credential']).optional().describe("'pop': the initiator must prove it holds its key, not just show its credential."),
+  minimum_tenure_days: z.number().int().min(0).optional().describe("Initiator's days since its first session, at least."),
+  minimum_session_completion_rate: z.number().min(0).max(1).optional().describe('Share of its sessions it closed, at least (0 with no history).'),
+  maximum_denied_requests_30d: z.number().int().min(0).optional().describe('Policy refusals of its requests in the last 30 days, at most.'),
+  minimum_unique_counterparties: z.number().int().min(0).optional().describe('Distinct agents it has had sessions with, at least.'),
+  minimum_handshake_success_rate: z.number().min(0).max(1).optional().describe('Share of its handshakes that succeeded, at least (0 with no history).'),
   description: z.string().optional().describe('Informational; never enforced.'),
 }).strict();
 

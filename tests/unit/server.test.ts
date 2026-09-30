@@ -476,3 +476,24 @@ describe('Agent card discovery', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── B18: reputation floors in scope policies ──
+
+import { z } from 'zod';
+import { schemas } from '../../src/schemas.js';
+
+describe('scope policy schema (B18 reputation floors)', () => {
+  const policies = z.object(schemas.update_scope_policies).shape.scope_policies;
+  it('accepts the reputation floors and claimed assurance', () => {
+    expect(policies.safeParse({ s: { permissions: ['a'], minimum_tenure_days: 30, minimum_session_completion_rate: 0.8, maximum_denied_requests_30d: 2, minimum_unique_counterparties: 3, minimum_handshake_success_rate: 0.9, minimum_identity_assurance: 'claimed' } }).success).toBe(true);
+  });
+  it('refuses out-of-range values and unknown fields', () => {
+    expect(policies.safeParse({ s: { permissions: ['a'], minimum_session_completion_rate: 1.2 } }).success).toBe(false);
+    expect(policies.safeParse({ s: { permissions: ['a'], minimum_tenure_days: 1.5 } }).success).toBe(false);
+    expect(policies.safeParse({ s: { permissions: ['a'], minimum_reputation_score: 0.5 } }).success).toBe(false);
+  });
+  it('the tool definitions list the fields', () => {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.UPDATE_SCOPE_POLICIES);
+    expect(JSON.stringify(tool?.inputSchema)).toContain('minimum_tenure_days');
+  });
+});
