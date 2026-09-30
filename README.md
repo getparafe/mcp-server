@@ -70,12 +70,13 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
 
 ### 3. Use It
 
-Your agent now has 20 trust tools. The typical flow:
+Your agent now has 23 trust tools. The typical flow:
 
 1. **Discover** — `parafe_discover` fetches the target agent's agent card to learn its trust requirements
 2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
 3. **Handshake** — `parafe_initiate_handshake` starts mutual authentication; the target calls `parafe_complete_handshake`
 4. **Interact** — `parafe_verify_consent` checks each request; after each action you perform or refuse, `parafe_record_action_receipt` signs an action receipt and files it in the session's index (`parafe_file_action_receipt` files the other agent's copy)
+   - **Selling under an AP2 mandate?** `parafe_verify_mandate` has the broker check the mandate the shopping agent presented; answer with `parafe_record_ap2_receipt` (an AP2 Checkout or Payment Receipt, signed with your P-256 key and filed in the session's index)
 5. **Close** — `parafe_close_session` generates a signed receipt (a JWS) of the session's trust context and every action receipt filed, verifiable by anyone who holds it; the other participant fetches it with `parafe_get_session_receipt`
 
 ## Environment Variables
@@ -111,6 +112,9 @@ Your agent now has 20 trust tools. The typical flow:
 | `parafe_verify_consent_locally` | Verify a consent token offline against the broker's keys |
 | `parafe_create_presentation_proof` | Proof to send with a consent token you present (tokens are bound to your key) |
 | `parafe_get_agent_metrics` | Get reputation metrics for an agent (trust signals from interaction history) |
+| `parafe_verify_mandate` | Have the broker verify an AP2 mandate presented to you (merchant or payment processor): valid, the AP2 error code if not, the agent holding it, the redemption |
+| `parafe_record_ap2_receipt` | Sign an AP2 Checkout or Payment Receipt and file it in the session's index (needs a P-256 agent key) |
+| `parafe_sign_ap2_receipt` | Sign an AP2 Checkout or Payment Receipt without filing it (a purchase outside a Parafé session) |
 
 ## Resources
 

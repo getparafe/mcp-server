@@ -8,13 +8,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { ParafeClient, ParafeError, type ActionErrorCode, type ReceiptKind } from '@getparafe/sdk';
-import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from './tools.js';
+import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization, buildVerifyMandateOptions, buildAp2ReceiptOptions } from './tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from './resources.js';
 import { schemas } from './schemas.js';
 
 // ── Package version (injected at build or read from package.json) ──
 
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 
 // ── Configuration ──
 
@@ -405,6 +405,18 @@ async function handleToolCall(
       return client.getAgentMetrics(args.agent_id as string);
     }
 
+    case TOOL_NAMES.VERIFY_MANDATE: {
+      return client.verifyMandate(buildVerifyMandateOptions(args));
+    }
+
+    case TOOL_NAMES.RECORD_AP2_RECEIPT: {
+      return client.recordAp2Receipt(args.session_id as string, buildAp2ReceiptOptions(args));
+    }
+
+    case TOOL_NAMES.SIGN_AP2_RECEIPT: {
+      return client.signAp2Receipt(buildAp2ReceiptOptions(args));
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -514,6 +526,9 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.GET_SESSION_RECEIPT, desc(TOOL_NAMES.GET_SESSION_RECEIPT), schemas.get_session_receipt, h(TOOL_NAMES.GET_SESSION_RECEIPT));
   server.tool(TOOL_NAMES.CREATE_PRESENTATION_PROOF, desc(TOOL_NAMES.CREATE_PRESENTATION_PROOF), schemas.create_presentation_proof, h(TOOL_NAMES.CREATE_PRESENTATION_PROOF));
   server.tool(TOOL_NAMES.CREATE_CLAIM_LINK, desc(TOOL_NAMES.CREATE_CLAIM_LINK), schemas.create_claim_link, h(TOOL_NAMES.CREATE_CLAIM_LINK));
+  server.tool(TOOL_NAMES.VERIFY_MANDATE, desc(TOOL_NAMES.VERIFY_MANDATE), schemas.verify_mandate, h(TOOL_NAMES.VERIFY_MANDATE));
+  server.tool(TOOL_NAMES.RECORD_AP2_RECEIPT, desc(TOOL_NAMES.RECORD_AP2_RECEIPT), schemas.record_ap2_receipt, h(TOOL_NAMES.RECORD_AP2_RECEIPT));
+  server.tool(TOOL_NAMES.SIGN_AP2_RECEIPT, desc(TOOL_NAMES.SIGN_AP2_RECEIPT), schemas.sign_ap2_receipt, h(TOOL_NAMES.SIGN_AP2_RECEIPT));
 
   // Register static resources
   for (const resDef of RESOURCE_DEFINITIONS) {

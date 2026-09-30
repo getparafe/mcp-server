@@ -7,15 +7,23 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization } from '../../src/tools.js';
+import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization, buildVerifyMandateOptions, buildAp2ReceiptOptions } from '../../src/tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from '../../src/resources.js';
 import { loadConfig, createServer, discoverAgentCard, PARAFE_EXTENSION_URIS, type ServerConfig } from '../../src/index.js';
 
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 20 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(20);
+  it('should define exactly 23 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(23);
+  });
+
+  it('adds the AP2 tools (0.8.0)', () => {
+    const find = (n: string) => TOOL_DEFINITIONS.find((t) => t.name === n);
+    expect(find(TOOL_NAMES.VERIFY_MANDATE)?.inputSchema.required).toEqual(['mandate']);
+    expect(find(TOOL_NAMES.RECORD_AP2_RECEIPT)?.inputSchema.required).toEqual(['session_id', 'kind']);
+    expect(find(TOOL_NAMES.SIGN_AP2_RECEIPT)?.inputSchema.required).toEqual(['kind']);
+    expect(find(TOOL_NAMES.RECORD_AP2_RECEIPT)?.description).toContain('P-256');
   });
 
   it('replaces parafe_record_action with action receipt tools (0.6.0)', () => {
@@ -61,6 +69,9 @@ describe('Tool definitions', () => {
     expect(names).toContain(TOOL_NAMES.UPDATE_SCOPE_POLICIES);
     expect(names).toContain(TOOL_NAMES.GET_PUBLIC_KEY);
     expect(names).toContain(TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
+    expect(names).toContain(TOOL_NAMES.VERIFY_MANDATE);
+    expect(names).toContain(TOOL_NAMES.SIGN_AP2_RECEIPT);
+    expect(names).toContain(TOOL_NAMES.RECORD_AP2_RECEIPT);
   });
 
   it('every tool should have a non-empty description', () => {
@@ -489,5 +500,32 @@ describe('scope policy schema (B18 reputation floors)', () => {
   it('the tool definitions list the fields', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.UPDATE_SCOPE_POLICIES);
     expect(JSON.stringify(tool?.inputSchema)).toContain('minimum_tenure_days');
+  });
+});
+
+describe('AP2 argument mapping', () => {
+  it('maps verify_mandate arguments to the SDK options, leaving out what was not given', () => {
+    expect(buildVerifyMandateOptions({ mandate: 'm' })).toEqual({ mandate: 'm' });
+    expect(buildVerifyMandateOptions({
+      mandate: 'm', session_id: 'sess_1', agent_id: 'prf_agent_1', checkout_jwt: 'cj', checkout_hash: 'ch', checkout_mandate: 'cm',
+      expected_audience: 'aud', expected_nonce: 'n', trusted_issuers: [{ jwk: { kty: 'EC' } }],
+      context: { total_amount: 500, total_uses: 0 }, redeem: false,
+    })).toEqual({
+      mandate: 'm', sessionId: 'sess_1', agentId: 'prf_agent_1', checkoutJwt: 'cj', checkoutHash: 'ch', checkoutMandate: 'cm',
+      expectedAudience: 'aud', expectedNonce: 'n', trustedIssuers: [{ jwk: { kty: 'EC' } }],
+      context: { totalAmount: 500, totalUses: 0 }, redeem: false,
+    });
+  });
+
+  it('maps AP2 receipt arguments to the SDK options', () => {
+    expect(buildAp2ReceiptOptions({
+      kind: 'payment', mandate: 'm', reference_form: 'sd_hash', iss: 'psp', status: 'Error', error: 'invalid_mandate',
+      error_description: 'bad', payment_id: 'p1', psp_confirmation_id: 'c1', network_confirmation_id: 'n1', session_id: 'ignored',
+    })).toEqual({
+      kind: 'payment', mandate: 'm', referenceForm: 'sd_hash', iss: 'psp', status: 'Error', error: 'invalid_mandate',
+      errorDescription: 'bad', paymentId: 'p1', pspConfirmationId: 'c1', networkConfirmationId: 'n1',
+    });
+    expect(buildAp2ReceiptOptions({ kind: 'checkout', references: { sdHash: 's', closedJwt: 'c' }, order_id: 'o' }))
+      .toEqual({ kind: 'checkout', references: { sdHash: 's', closedJwt: 'c' }, orderId: 'o' });
   });
 });

@@ -10,7 +10,7 @@ MCP tool server for the Parafe Trust Broker. Wraps `@getparafe/sdk` to expose tr
 - `src/resources.ts` — MCP resource definitions
 - `src/bin/parafe-mcp.ts` — CLI entry point for `npx` execution
 - `tests/unit/server.test.ts` — Unit tests (no network)
-- `tests/integration/lifecycle.test.ts` — Integration tests (4 tests, self-bootstrapping against live broker)
+- `tests/integration/lifecycle.test.ts` — Integration tests (5 tests, self-bootstrapping against live broker; the AP2 one drives the tools through an MCP client)
 
 ## Running
 
@@ -36,6 +36,7 @@ Integration tests are self-bootstrapping — they create their own org + API key
 - **Zod schemas** — MCP SDK requires Zod for parameter validation. Schemas in `src/schemas.ts`.
 - **Tool descriptions** — written so an LLM knows when/how to use each tool without external docs. These are in `src/tools.ts`.
 - **Credential lifecycle** — auto-loads on startup if passphrase is set, auto-saves after registration.
+- **AP2 tools (0.8.0)** — `parafe_verify_mandate` wraps the SDK's `verifyMandate()`; `parafe_record_ap2_receipt` / `parafe_sign_ap2_receipt` wrap `recordAp2Receipt()` / `signAp2Receipt()` (ES256: the agent needs a P-256 key). Snake_case arguments map to SDK options in `buildVerifyMandateOptions` / `buildAp2ReceiptOptions` (`src/tools.ts`); the SDK validates the receipt fields.
 - **Action receipts (0.6.0)** — `parafe_record_action_receipt` signs with the loaded agent's key and files it; `parafe_file_action_receipt` files the other agent's copy (a duplicate returns the original acknowledgment); `parafe_get_action_receipts` lists the index. `parafe_record_action` (`/interaction/record`) was removed.
 
 ## When Making Changes
