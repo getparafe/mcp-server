@@ -274,7 +274,7 @@ async function handleToolCall(
 
       const authorization = buildAuthorization(
         args.authorization_modality as string | undefined,
-        args.authorization_evidence as { instruction?: string; platform?: string; timestamp?: string; user_signature?: string } | undefined,
+        args.authorization_evidence as Parameters<typeof buildAuthorization>[1],
       );
 
       return client.handshake({
@@ -301,7 +301,7 @@ async function handleToolCall(
 
       const authorization = buildAuthorization(
         args.authorization_modality as string | undefined,
-        args.authorization_evidence as { instruction?: string; platform?: string; timestamp?: string; user_signature?: string } | undefined,
+        args.authorization_evidence as Parameters<typeof buildAuthorization>[1],
       );
 
       return client.escalateScope({

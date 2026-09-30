@@ -140,7 +140,8 @@ describe('Tool definitions', () => {
       expect(props).toHaveProperty('instruction');
       expect(props).toHaveProperty('platform');
       expect(props).toHaveProperty('timestamp');
-      expect(props).toHaveProperty('user_signature');
+      expect(props).toHaveProperty('ap2_mandate');
+      expect(props).not.toHaveProperty('user_signature');
     }
   });
 });
@@ -202,6 +203,13 @@ describe('buildAuthorization', () => {
     });
   });
 
+  it("B8: delegated and verified carry the AP2 mandate; a missing mandate is refused", () => {
+    expect(buildAuthorization('delegated', { ap2_mandate: 'open~~closed~' })).toEqual({ modality: 'delegated', evidence: { ap2_mandate: 'open~~closed~' } });
+    expect(buildAuthorization('verified', { ap2_mandate: 'root~', checkout_jwt: 'cj' })).toEqual({ modality: 'verified', evidence: { ap2_mandate: 'root~', checkout_jwt: 'cj' } });
+    expect(() => buildAuthorization('verified', { instruction: 'pay', platform: 'app' })).toThrow(/mandate/);
+    expect(() => buildAuthorization('supervised')).toThrow(/Unknown/);
+  });
+
   it('should auto-set timestamp for attested when omitted', () => {
     const auth = buildAuthorization('attested', {
       instruction: 'Book my flight',
@@ -215,22 +223,8 @@ describe('buildAuthorization', () => {
     }
   });
 
-  it('should build verified authorization with user_signature', () => {
-    const auth = buildAuthorization('verified', {
-      instruction: 'Approve payment',
-      platform: 'wallet-app',
-      user_signature: 'base64sig==',
-      timestamp: '2026-03-28T10:00:00Z',
-    });
-    expect(auth.modality).toBe('verified');
-    if ('evidence' in auth) {
-      expect(auth.evidence).toHaveProperty('user_signature', 'base64sig==');
-    }
-  });
-
-  it('should default unknown modality to autonomous', () => {
-    const auth = buildAuthorization('unknown_modality');
-    expect(auth).toEqual({ modality: 'autonomous' });
+  it('an unknown modality is refused, not silently treated as autonomous', () => {
+    expect(() => buildAuthorization('unknown_modality')).toThrow(/Unknown authorization modality/);
   });
 });
 

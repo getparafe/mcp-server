@@ -41,7 +41,7 @@ This is the first step before any handshake. The agent card tells you:
 - Whether the target requires Parafe trust (look for the Parafe extension with 'required: true')
 - The target's Parafe agent ID (needed for parafe_initiate_handshake)
 - The broker URL
-- Available scopes and their requirements: what permissions each scope grants, what authorization modality is required (autonomous, attested, or verified), and what minimum identity assurance level is needed
+- Available scopes and their requirements: what permissions each scope grants, what authorization modality is required (autonomous, attested, delegated, or verified), and what minimum identity assurance level is needed
 - The target's A2A endpoints and the A2A protocol version each one speaks (interfaces)
 
 Always discover before handshaking. The agent card tells you whether your credentials meet the target's requirements — saving a round trip if they don't.`,
@@ -92,7 +92,7 @@ Registered without an API key, the agent has no owner (self_registered, unverifi
             properties: {
               permissions: { type: 'array', items: { type: 'string' } },
               exclusions: { type: 'array', items: { type: 'string' } },
-              minimum_authorization_modality: { type: 'string', enum: ['autonomous', 'attested', 'verified'] },
+              minimum_authorization_modality: { type: 'string', enum: ['autonomous', 'attested', 'delegated', 'verified'] },
               minimum_identity_assurance: { type: 'string', enum: ['self_registered', 'registered', 'claimed'] },
               minimum_verification_tier: { type: 'string', enum: ['unverified', 'email_verified', 'domain_verified', 'org_verified'] },
               minimum_initiator_proof: { type: 'string', enum: ['pop', 'credential'] },
@@ -101,6 +101,11 @@ Registered without an API key, the agent has no owner (self_registered, unverifi
               maximum_denied_requests_30d: { type: 'integer', minimum: 0, description: 'Reputation cap: policy refusals of its requests in the last 30 days.' },
               minimum_unique_counterparties: { type: 'integer', minimum: 0, description: 'Reputation floor: distinct agents it has had sessions with.' },
               minimum_handshake_success_rate: { type: 'number', minimum: 0, maximum: 1, description: 'Reputation floor: share of its handshakes that succeeded.' },
+              ap2_trusted_issuers: {
+                type: 'array',
+                description: "AP2 mandate issuers this scope accepts for 'delegated' and 'verified': public JWKs.",
+                items: { type: 'object', properties: { jwk: { type: 'object' }, kid: { type: 'string' }, iss: { type: 'string' }, name: { type: 'string' } }, required: ['jwk'] },
+              },
               description: { type: 'string' },
             },
             required: ['permissions'],
@@ -121,7 +126,7 @@ You must specify:
 
 The target agent must complete the handshake (using parafe_complete_handshake) within 5 minutes. Once complete, you receive a scoped consent token that defines exactly what this interaction is authorized to do.
 
-Use 'autonomous' authorization (default) when acting on your own. Use 'attested' when you're acting on a human's instruction. Don't use 'verified' yet: the broker refuses it (verified_evidence_unverifiable) until it can check a user-signed AP2 mandate, so a scope that requires 'verified' can't be reached today.`,
+Use 'autonomous' authorization (default) when acting on your own. Use 'attested' when you're acting on a human's instruction. Use 'delegated' or 'verified' only with a user-signed AP2 mandate (authorization_evidence.ap2_mandate): 'delegated' for an open mandate the user gave you (limits) that you closed with your own key, 'verified' for a mandate the user signed for this exact purchase. The broker checks it against the issuers the target trusts, and each mandate works once.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -140,17 +145,20 @@ Use 'autonomous' authorization (default) when acting on your own. Use 'attested'
         },
         authorization_modality: {
           type: 'string',
-          enum: ['autonomous', 'attested', 'verified'],
-          description: "Level of human authorization. 'autonomous' = agent acting alone (default). 'attested' = agent states a human instructed this. 'verified' = a human signature the broker has checked; not accepted yet (the broker returns verified_evidence_unverifiable).",
+          enum: ['autonomous', 'attested', 'delegated', 'verified'],
+          description: "Level of human authorization, weakest to strongest. 'autonomous' = agent acting alone (default). 'attested' = agent states a human instructed this. 'delegated' = an AP2 open mandate the user signed, closed with your key. 'verified' = an AP2 mandate the user signed for this exact purchase.",
         },
         authorization_evidence: {
           type: 'object',
-          description: "Evidence for the 'attested' modality. Required if modality is not 'autonomous'.",
+          description: "Evidence for the modality. Required if modality is not 'autonomous'.",
           properties: {
-            instruction: { type: 'string', description: 'What the human instructed (required for attested and verified).' },
-            platform: { type: 'string', description: 'Platform that attested or verified the instruction (required for attested and verified).' },
-            timestamp: { type: 'string', description: 'ISO 8601 timestamp of when the instruction was given. Auto-set to now if omitted.' },
-            user_signature: { type: 'string', description: "Not accepted: the broker can't check a bare signature string, so it refuses 'verified'." },
+            instruction: { type: 'string', description: 'attested: what the human instructed.' },
+            platform: { type: 'string', description: 'attested: the platform the instruction was given on.' },
+            timestamp: { type: 'string', description: 'attested: ISO 8601 timestamp of the instruction. Auto-set to now if omitted.' },
+            ap2_mandate: { type: 'string', description: 'delegated / verified: the user-signed AP2 mandate as presented (~~-joined Delegate SD-JWT chain).' },
+            checkout_jwt: { type: 'string', description: 'delegated / verified: the merchant-signed Checkout JWT, when the mandate needs it.' },
+            checkout_hash: { type: 'string', description: "delegated / verified: a payment mandate's checkout hash." },
+            checkout_mandate: { type: 'string', description: 'delegated / verified: the checkout mandate a payment mandate belongs to.' },
           },
         },
         context: {
@@ -210,15 +218,18 @@ For example, if a flight-rebooking session needs to also process a payment, you 
         },
         authorization_modality: {
           type: 'string',
-          enum: ['autonomous', 'attested', 'verified'],
+          enum: ['autonomous', 'attested', 'delegated', 'verified'],
         },
         authorization_evidence: {
           type: 'object',
           properties: {
-            instruction: { type: 'string', description: 'What the human instructed (required for attested and verified).' },
-            platform: { type: 'string', description: 'Platform that attested or verified the instruction (required for attested and verified).' },
-            timestamp: { type: 'string', description: 'ISO 8601 timestamp of when the instruction was given. Auto-set to now if omitted.' },
-            user_signature: { type: 'string', description: "Not accepted: the broker can't check a bare signature string, so it refuses 'verified'." },
+            instruction: { type: 'string', description: 'attested: what the human instructed.' },
+            platform: { type: 'string', description: 'attested: the platform the instruction was given on.' },
+            timestamp: { type: 'string', description: 'attested: ISO 8601 timestamp of the instruction. Auto-set to now if omitted.' },
+            ap2_mandate: { type: 'string', description: 'delegated / verified: the user-signed AP2 mandate as presented (~~-joined Delegate SD-JWT chain).' },
+            checkout_jwt: { type: 'string', description: 'delegated / verified: the merchant-signed Checkout JWT, when the mandate needs it.' },
+            checkout_hash: { type: 'string', description: "delegated / verified: a payment mandate's checkout hash." },
+            checkout_mandate: { type: 'string', description: 'delegated / verified: the checkout mandate a payment mandate belongs to.' },
           },
         },
       },
@@ -402,7 +413,7 @@ For example, you can require that any agent requesting 'payment-processing' scop
             properties: {
               permissions: { type: 'array', items: { type: 'string' } },
               exclusions: { type: 'array', items: { type: 'string' } },
-              minimum_authorization_modality: { type: 'string', enum: ['autonomous', 'attested', 'verified'] },
+              minimum_authorization_modality: { type: 'string', enum: ['autonomous', 'attested', 'delegated', 'verified'] },
               minimum_identity_assurance: { type: 'string', enum: ['self_registered', 'registered', 'claimed'] },
               minimum_verification_tier: { type: 'string', enum: ['unverified', 'email_verified', 'domain_verified', 'org_verified'] },
               minimum_initiator_proof: { type: 'string', enum: ['pop', 'credential'] },
@@ -411,6 +422,11 @@ For example, you can require that any agent requesting 'payment-processing' scop
               maximum_denied_requests_30d: { type: 'integer', minimum: 0, description: 'Reputation cap: policy refusals of its requests in the last 30 days.' },
               minimum_unique_counterparties: { type: 'integer', minimum: 0, description: 'Reputation floor: distinct agents it has had sessions with.' },
               minimum_handshake_success_rate: { type: 'number', minimum: 0, maximum: 1, description: 'Reputation floor: share of its handshakes that succeeded.' },
+              ap2_trusted_issuers: {
+                type: 'array',
+                description: "AP2 mandate issuers this scope accepts for 'delegated' and 'verified': public JWKs.",
+                items: { type: 'object', properties: { jwk: { type: 'object' }, kid: { type: 'string' }, iss: { type: 'string' }, name: { type: 'string' } }, required: ['jwk'] },
+              },
               description: { type: 'string' },
             },
             required: ['permissions'],
@@ -516,7 +532,10 @@ interface AuthorizationEvidence {
   instruction?: string;
   platform?: string;
   timestamp?: string;
-  user_signature?: string;
+  ap2_mandate?: string;
+  checkout_jwt?: string;
+  checkout_hash?: string;
+  checkout_mandate?: string;
 }
 
 export function buildAuthorization(modality?: string, evidence?: AuthorizationEvidence) {
@@ -530,13 +549,15 @@ export function buildAuthorization(modality?: string, evidence?: AuthorizationEv
       timestamp: evidence?.timestamp,
     });
   }
-  if (modality === 'verified') {
-    return ParafeClient.authorization.verified({
-      instruction: evidence?.instruction ?? '',
-      platform: evidence?.platform ?? '',
-      userSignature: evidence?.user_signature ?? '',
-      timestamp: evidence?.timestamp,
-    });
+  if (modality === 'delegated' || modality === 'verified') {
+    // B8: the broker checks the AP2 mandate; the SDK refuses a missing one.
+    const opts = {
+      mandate: evidence?.ap2_mandate ?? '',
+      ...(evidence?.checkout_jwt ? { checkoutJwt: evidence.checkout_jwt } : {}),
+      ...(evidence?.checkout_hash ? { checkoutHash: evidence.checkout_hash } : {}),
+      ...(evidence?.checkout_mandate ? { checkoutMandate: evidence.checkout_mandate } : {}),
+    };
+    return modality === 'delegated' ? ParafeClient.authorization.delegated(opts) : ParafeClient.authorization.verified(opts);
   }
-  return ParafeClient.authorization.autonomous();
+  throw new Error(`Unknown authorization modality '${modality}'`);
 }

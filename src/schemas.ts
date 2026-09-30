@@ -5,16 +5,28 @@
 import { z } from 'zod';
 
 const authorizationEvidence = z.object({
-  instruction: z.string().describe('What the human instructed (required for attested and verified).'),
-  platform: z.string().describe('Platform that attested or verified the instruction (required for attested and verified).'),
-  timestamp: z.string().optional().describe('ISO 8601 timestamp of when the instruction was given. Auto-set to now if omitted.'),
-  user_signature: z.string().optional().describe("Not accepted: the broker can't check a bare signature string, so it refuses 'verified'."),
+  instruction: z.string().optional().describe("attested: what the human instructed."),
+  platform: z.string().optional().describe('attested: the platform the instruction was given on.'),
+  timestamp: z.string().optional().describe('attested: ISO 8601 timestamp of the instruction. Auto-set to now if omitted.'),
+  ap2_mandate: z.string().optional().describe("delegated / verified: the user-signed AP2 mandate as presented (the ~~-joined Delegate SD-JWT chain)."),
+  checkout_jwt: z.string().optional().describe('delegated / verified: the merchant-signed Checkout JWT, when the mandate needs it.'),
+  checkout_hash: z.string().optional().describe("delegated / verified: a payment mandate's checkout hash, if you don't have the Checkout JWT."),
+  checkout_mandate: z.string().optional().describe('delegated / verified: the checkout mandate a payment mandate belongs to.'),
 }).optional();
+
+const MODALITY_DESCRIPTION = "Level of human authorization, weakest to strongest. 'autonomous' = agent acting alone (default). 'attested' = agent states a human instructed this (evidence: instruction, platform). 'delegated' = the user signed an AP2 open mandate (limits) that endorses this agent's key, and this agent closed it (evidence: ap2_mandate). 'verified' = the user signed an AP2 mandate for this exact purchase (evidence: ap2_mandate). The broker checks delegated and verified mandates against the issuers the target trusts.";
+
+const trustedIssuer = z.object({
+  jwk: z.record(z.string(), z.unknown()).describe('The issuer public key as a JWK (EC P-256 in AP2).'),
+  kid: z.string().optional(),
+  iss: z.string().optional(),
+  name: z.string().optional(),
+}).strict();
 
 const scopePolicyValue = z.object({
   permissions: z.array(z.string()),
   exclusions: z.array(z.string()).optional(),
-  minimum_authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional(),
+  minimum_authorization_modality: z.enum(['autonomous', 'attested', 'delegated', 'verified']).optional(),
   minimum_identity_assurance: z.enum(['self_registered', 'registered', 'claimed']).optional(),
   minimum_verification_tier: z.enum(['unverified', 'email_verified', 'domain_verified', 'org_verified']).optional(),
   minimum_initiator_proof: z.enum(['pop', 'credential']).optional().describe("'pop': the initiator must prove it holds its key, not just show its credential."),
@@ -23,6 +35,7 @@ const scopePolicyValue = z.object({
   maximum_denied_requests_30d: z.number().int().min(0).optional().describe('Policy refusals of its requests in the last 30 days, at most.'),
   minimum_unique_counterparties: z.number().int().min(0).optional().describe('Distinct agents it has had sessions with, at least.'),
   minimum_handshake_success_rate: z.number().min(0).max(1).optional().describe('Share of its handshakes that succeeded, at least (0 with no history).'),
+  ap2_trusted_issuers: z.array(trustedIssuer).optional().describe("AP2 mandate issuers this scope accepts for 'delegated' and 'verified'."),
   description: z.string().optional().describe('Informational; never enforced.'),
 }).strict();
 
@@ -43,8 +56,8 @@ export const schemas = {
     target_agent_id: z.string().describe("Parafe agent ID of the agent to handshake with (starts with 'prf_agent_')."),
     scope: z.string().describe("Type of interaction (e.g., 'flight-rebooking', 'data-sharing', 'payment-processing')."),
     permissions: z.array(z.string()).describe('Specific actions you are requesting permission for within the scope.'),
-    authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional().describe("Level of human authorization. 'autonomous' = agent acting alone (default). 'attested' = agent states a human instructed this. 'verified' = a human signature the broker has checked; not accepted yet (the broker returns verified_evidence_unverifiable)."),
-    authorization_evidence: authorizationEvidence.describe("Evidence for the 'attested' modality. Required if modality is not 'autonomous'."),
+    authorization_modality: z.enum(['autonomous', 'attested', 'delegated', 'verified']).optional().describe(MODALITY_DESCRIPTION),
+    authorization_evidence: authorizationEvidence.describe("Evidence for the modality. Required if modality is not 'autonomous'."),
     context: z.record(z.string(), z.unknown()).optional().describe('Optional context stored by the broker with the handshake (e.g., user ID, account reference). It is not shown on the receipt.'),
   },
 
@@ -58,7 +71,7 @@ export const schemas = {
     target_agent_id: z.string().describe('Target agent ID (must match the session participant).'),
     scope: z.string().describe('New scope to request.'),
     permissions: z.array(z.string()).describe('Actions for the new scope.'),
-    authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional(),
+    authorization_modality: z.enum(['autonomous', 'attested', 'delegated', 'verified']).optional().describe(MODALITY_DESCRIPTION),
     authorization_evidence: authorizationEvidence,
   },
 
