@@ -40,6 +40,10 @@ async function bootstrap(label: string): Promise<string> {
   return data.api_key.key;
 }
 
+// Staging allows 5 signups per hour per IP: tests that don't need their own org share one.
+let sharedKey: Promise<string> | undefined;
+const sharedApiKey = () => (sharedKey ??= bootstrap('shared'));
+
 // ── Health check ──
 
 describe('Broker reachability', () => {
@@ -57,7 +61,7 @@ describe('parafe_get_public_key', () => {
   let apiKey: string;
 
   beforeAll(async () => {
-    apiKey = await bootstrap('pubkey');
+    apiKey = await sharedApiKey();
   });
 
   it('should return the broker public key via SDK method', async () => {
@@ -170,7 +174,7 @@ describe('parafe_verify_consent_locally', () => {
   let apiKey: string;
 
   beforeAll(async () => {
-    apiKey = await bootstrap('vcl');
+    apiKey = await sharedApiKey();
   });
 
   it('should reject a tampered or invalid consent token', async () => {
@@ -191,7 +195,7 @@ describe('AP2 tools', () => {
   let apiKeyShop: string;
 
   beforeAll(async () => {
-    [apiKeyShopper, apiKeyShop] = await Promise.all([bootstrap('ap2shopper'), bootstrap('ap2shop')]);
+    apiKeyShopper = apiKeyShop = await sharedApiKey(); // two agents of one org
   });
 
   it('verify_mandate reports an invalid mandate; sign/record_ap2_receipt sign and file receipts', async () => {
