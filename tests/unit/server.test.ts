@@ -14,8 +14,15 @@ import { loadConfig, createServer, discoverAgentCard, PARAFE_EXTENSION_URIS, typ
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 15 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(15);
+  it('should define exactly 17 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(17);
+  });
+
+  it('adds parafe_get_session_receipt and parafe_create_presentation_proof (0.4.0)', () => {
+    const receipt = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.GET_SESSION_RECEIPT);
+    expect(receipt?.inputSchema.required).toEqual(['session_id']);
+    const proof = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.CREATE_PRESENTATION_PROOF);
+    expect(proof?.inputSchema.required).toEqual(['consent_token']);
   });
 
   it('should have unique tool names', () => {
@@ -99,11 +106,9 @@ describe('Tool definitions', () => {
     expect(tool?.inputSchema.required).toHaveLength(0);
   });
 
-  it('parafe_verify_consent_locally should require consent_token and broker_public_key', () => {
+  it('parafe_verify_consent_locally requires only consent_token (the broker keys are fetched)', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
-    expect(tool?.inputSchema.required).toEqual(
-      expect.arrayContaining(['consent_token', 'broker_public_key']),
-    );
+    expect(tool?.inputSchema.required).toEqual(['consent_token']);
   });
 
   it('handshake tools should include authorization_evidence with timestamp field', () => {
@@ -316,9 +321,16 @@ describe('Tool description quality', () => {
     expect(tool?.description).toContain('persist across sessions');
   });
 
-  it('parafe_verify_consent_locally description should mention no network call', () => {
+  it('parafe_verify_consent_locally description should mention no broker round-trip', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.VERIFY_CONSENT_LOCALLY);
-    expect(tool?.description).toContain('no network');
+    expect(tool?.description).toContain('no broker round-trip');
+  });
+
+  it('receipt descriptions describe the JWS receipt and exclusions, and do not claim actions are listed', () => {
+    const close = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.CLOSE_SESSION);
+    expect(close?.description).toContain('JWS');
+    expect(close?.description).toContain('exclusions');
+    expect(close?.description).toContain('does not list recorded actions');
   });
 });
 

@@ -17,7 +17,9 @@ const scopePolicyValue = z.object({
   minimum_authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional(),
   minimum_identity_assurance: z.enum(['self_registered', 'registered']).optional(),
   minimum_verification_tier: z.enum(['unverified', 'email_verified', 'domain_verified', 'org_verified']).optional(),
-});
+  minimum_initiator_proof: z.enum(['pop', 'credential']).optional().describe("'pop': the initiator must prove it holds its key, not just show its credential."),
+  description: z.string().optional().describe('Informational; never enforced.'),
+}).strict();
 
 export const schemas = {
   discover: {
@@ -28,6 +30,7 @@ export const schemas = {
     name: z.string().describe('Agent name. Lowercase alphanumeric and hyphens, 3-100 characters.'),
     type: z.enum(['personal', 'enterprise']).describe("Agent type. Use 'enterprise' for business agents, 'personal' for individual agents."),
     owner: z.string().describe('Organization or individual that owns this agent.'),
+    key_algorithm: z.enum(['Ed25519', 'P-256']).optional().describe("Key type. 'Ed25519' (default) or 'P-256' (ES256, the key type AP2 mandates use)."),
     scope_policies: z.record(z.string(), scopePolicyValue).optional().describe('Optional scope policies defining what interactions this agent accepts.'),
   },
 
@@ -58,6 +61,7 @@ export const schemas = {
     consent_token: z.string().describe('JWT consent token from a completed handshake.'),
     action: z.string().describe('Action to check permission for.'),
     session_id: z.string().describe('Session ID the consent token belongs to.'),
+    presentation_proof: z.string().optional().describe('Optional: the presentation proof the initiator sent with the token.'),
   },
 
   record_action: {
@@ -72,7 +76,7 @@ export const schemas = {
   },
 
   verify_receipt: {
-    receipt: z.record(z.string(), z.unknown()).describe("Full receipt object including the 'signature' field, as returned by parafe_close_session."),
+    receipt: z.union([z.string(), z.record(z.string(), z.unknown())]).describe("The receipt JWS string, or the receipt object returned by parafe_close_session / parafe_get_session_receipt."),
   },
 
   revoke_agent: {
@@ -92,7 +96,16 @@ export const schemas = {
 
   verify_consent_locally: {
     consent_token: z.string().describe('JWT consent token to verify.'),
-    broker_public_key: z.string().describe("Broker's Ed25519 public key in base64 format (from parafe_get_public_key or the parafe://public-key resource)."),
+    broker_public_key: z.string().optional().describe("Optional, legacy: the broker's Ed25519 key in base64, for tokens issued before 2026-09-30. Omit it: the broker's JWKS is fetched and cached."),
+  },
+
+  get_session_receipt: {
+    session_id: z.string().describe("Session ID (starts with 'sess_')."),
+  },
+
+  create_presentation_proof: {
+    consent_token: z.string().describe('The consent token you are presenting.'),
+    message_id: z.string().optional().describe('Optional: the ID of the A2A message the token travels in.'),
   },
 
   get_agent_metrics: {

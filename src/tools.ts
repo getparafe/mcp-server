@@ -23,6 +23,8 @@ export const TOOL_NAMES = {
   GET_PUBLIC_KEY: 'parafe_get_public_key',
   VERIFY_CONSENT_LOCALLY: 'parafe_verify_consent_locally',
   GET_AGENT_METRICS: 'parafe_get_agent_metrics',
+  GET_SESSION_RECEIPT: 'parafe_get_session_receipt',
+  CREATE_PRESENTATION_PROOF: 'parafe_create_presentation_proof',
 } as const;
 
 // ── Tool definitions (name, description, inputSchema) ──
@@ -53,7 +55,7 @@ Always discover before handshaking. The agent card tells you whether your creden
   },
   {
     name: TOOL_NAMES.REGISTER,
-    description: `Register a new agent identity with the Parafe trust network. This generates an Ed25519 cryptographic key pair, sends the public key to the Parafe broker, and receives a signed credential. Call this once to establish your agent's identity — credentials are saved automatically and persist across sessions.
+    description: `Register a new agent identity with the Parafe trust network. This generates a key pair (Ed25519 by default, or P-256 for AP2 interop), sends the public key to the Parafe broker, and receives a signed credential (a JWT, plus the same identity as an SD-JWT VC that binds your key). Call this once to establish your agent's identity — credentials are saved automatically and persist across sessions. Your private key never leaves this server; it signs a proof of possession on every request made as your agent.
 
 You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.`,
     inputSchema: {
@@ -72,6 +74,11 @@ You must register before you can initiate or complete trust handshakes. If you a
           type: 'string',
           description: 'Organization or individual that owns this agent.',
         },
+        key_algorithm: {
+          type: 'string',
+          enum: ['Ed25519', 'P-256'],
+          description: "Key type. 'Ed25519' (default) or 'P-256' (ES256, the key type AP2 mandates use).",
+        },
         scope_policies: {
           type: 'object',
           description: 'Optional scope policies defining what interactions this agent accepts.',
@@ -83,6 +90,8 @@ You must register before you can initiate or complete trust handshakes. If you a
               minimum_authorization_modality: { type: 'string', enum: ['autonomous', 'attested', 'verified'] },
               minimum_identity_assurance: { type: 'string', enum: ['self_registered', 'registered'] },
               minimum_verification_tier: { type: 'string', enum: ['unverified', 'email_verified', 'domain_verified', 'org_verified'] },
+              minimum_initiator_proof: { type: 'string', enum: ['pop', 'credential'] },
+              description: { type: 'string' },
             },
             required: ['permissions'],
           },
@@ -210,7 +219,7 @@ For example, if a flight-rebooking session needs to also process a payment, you 
     name: TOOL_NAMES.VERIFY_CONSENT,
     description: `Check whether a specific action is permitted by a consent token before performing it. Call this before taking any scoped action to ensure you're operating within the agreed boundaries.
 
-Returns whether the action is permitted, and if not, why (e.g., action is in the exclusion list, token expired, scope mismatch).`,
+Returns whether the action is permitted, and if not, why (e.g., action is in the exclusion list, token expired, scope mismatch, an agent was revoked). Consent tokens are bound to the initiator's key: if the initiator sent a presentation proof with the token, pass it as presentation_proof and the broker checks it (a stolen token without the initiator's key fails).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -225,6 +234,10 @@ Returns whether the action is permitted, and if not, why (e.g., action is in the
         session_id: {
           type: 'string',
           description: 'Session ID the consent token belongs to.',
+        },
+        presentation_proof: {
+          type: 'string',
+          description: "Optional: the presentation proof the initiator sent with the token (from its parafe_create_presentation_proof).",
         },
       },
       required: ['consent_token', 'action', 'session_id'],
@@ -260,9 +273,9 @@ Record each significant action you take during the interaction. If a consent tok
   },
   {
     name: TOOL_NAMES.CLOSE_SESSION,
-    description: `Close an active session and generate a cryptographically signed receipt. The receipt is an Ed25519-signed record of the trust context: who participated, the handshake, every consent token issued (scope, permissions, authorization), and when. It does not list recorded actions or exclusions yet.
+    description: `Close an active session and get its signed receipt. The receipt ('receipt' field) is a compact JWS signed by the broker (ES256): who participated, mutual authentication, every consent token issued in the session (scope, permissions, exclusions, authorization modality, how the initiator proved itself), and when. The human's instruction and the handshake context appear only as hashes. It does not list recorded actions yet (per-action receipts are planned). The other fields are a readable copy decoded from the JWS.
 
-Either participant may close; only the agent that closes receives the receipt, so share it if the other side needs it. Anyone holding it can independently verify it; the receipt's 'issued' field is the exact signed form to store or verify. It serves as neutral, tamper-proof evidence of the session's trust context.
+Either participant may close; the other one can fetch the same receipt with parafe_get_session_receipt. Anyone holding the JWS can independently verify it against the broker's published keys. It serves as neutral, tamper-proof evidence of the session's trust context.
 
 Always close sessions when the interaction is complete.`,
     inputSchema: {
@@ -278,15 +291,15 @@ Always close sessions when the interaction is complete.`,
   },
   {
     name: TOOL_NAMES.VERIFY_RECEIPT,
-    description: `Verify a receipt's Ed25519 signature to confirm it was genuinely issued by the Parafe broker and has not been tampered with. Use this to independently validate interaction records.
+    description: `Verify a receipt's signature to confirm it was genuinely issued by the Parafe broker and has not been tampered with. Use this to independently validate interaction records.
 
-Returns whether the signature is valid and whether any tampering was detected.`,
+Pass the receipt JWS (the 'receipt' field from parafe_close_session or parafe_get_session_receipt), or the whole object returned by those tools. Receipts from before 2026-09-30 (signed JSON) also verify. Returns whether the signature is valid, whether tampering was detected, and the verified claims.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
         receipt: {
-          type: 'object',
-          description: "Full receipt object including the 'signature' field, as returned by parafe_close_session.",
+          type: ['string', 'object'],
+          description: "The receipt JWS string, or the receipt object returned by parafe_close_session / parafe_get_session_receipt.",
         },
       },
       required: ['receipt'],
@@ -310,9 +323,9 @@ Use this when an agent should be decommissioned or if credentials may have been 
   },
   {
     name: TOOL_NAMES.RENEW_CREDENTIAL,
-    description: `Renew an agent's credential to reflect the organization's current verification tier. Call this after your organization completes email or domain verification to upgrade your agent's trust level.
+    description: `Renew an agent's credential. The broker re-issues it when the owner's verification tier has changed (e.g. after email or domain verification), or when the credential is expired or within 7 days of expiry; otherwise it returns renewed: false.
 
-Credentials expire after 30 days. Renew before expiry to maintain uninterrupted trust capabilities.`,
+Credentials expire after 30 days. Renew in the last week to keep trust capabilities uninterrupted.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -347,6 +360,8 @@ For example, you can require that any agent requesting 'payment-processing' scop
               minimum_authorization_modality: { type: 'string', enum: ['autonomous', 'attested', 'verified'] },
               minimum_identity_assurance: { type: 'string', enum: ['self_registered', 'registered'] },
               minimum_verification_tier: { type: 'string', enum: ['unverified', 'email_verified', 'domain_verified', 'org_verified'] },
+              minimum_initiator_proof: { type: 'string', enum: ['pop', 'credential'] },
+              description: { type: 'string' },
             },
             required: ['permissions'],
           },
@@ -357,7 +372,7 @@ For example, you can require that any agent requesting 'payment-processing' scop
   },
   {
     name: TOOL_NAMES.GET_PUBLIC_KEY,
-    description: `Get the Parafe broker's Ed25519 public key. This key can be used to independently verify any Parafe-signed artifact (credentials, consent tokens, receipts) without calling the broker.`,
+    description: `Get the Parafe broker's signing keys (a JWKS). Every Parafe-signed artifact (credential, consent token, receipt) names the key that signed it (kid); with these keys anyone can verify it without calling the broker. The active key is ES256; the Ed25519 key that signed artifacts before 2026-09-30 is listed as retired.`,
     inputSchema: {
       type: 'object' as const,
       properties: {},
@@ -366,9 +381,9 @@ For example, you can require that any agent requesting 'payment-processing' scop
   },
   {
     name: TOOL_NAMES.VERIFY_CONSENT_LOCALLY,
-    description: `Verify a consent token locally using the broker's Ed25519 public key — no network call required. Use this when you need to validate a consent token offline or in a latency-sensitive path.
+    description: `Verify a consent token locally against the broker's published keys — no broker round-trip per token (the keys are fetched once and cached). Use this when you need to validate a consent token offline or in a latency-sensitive path.
 
-Provide the JWT consent token and the broker's base64-encoded Ed25519 public key (from parafe_get_public_key). Returns the decoded token payload if valid, or an error if the signature is invalid or the token is expired.
+Returns the token's scope, permissions, exclusions, session, initiator, audience, the key it's bound to, and how the initiator proved itself, or an error if the signature is invalid. Expired tokens return expired: true.
 
 Use parafe_verify_consent (network round-trip) when you also want the broker to check the action against scope policy. Use this tool when you only need signature and expiry validation.`,
     inputSchema: {
@@ -380,10 +395,10 @@ Use parafe_verify_consent (network round-trip) when you also want the broker to 
         },
         broker_public_key: {
           type: 'string',
-          description: "Broker's Ed25519 public key in base64 format (from parafe_get_public_key or the parafe://public-key resource).",
+          description: "Optional, legacy: the broker's Ed25519 key in base64, for tokens issued before 2026-09-30. Omit it: the broker's JWKS is fetched and cached.",
         },
       },
-      required: ['consent_token', 'broker_public_key'],
+      required: ['consent_token'],
     },
   },
   {
@@ -409,6 +424,38 @@ Higher tenure, completion rate, counterparty count, and handshake success rate i
         },
       },
       required: ['agent_id'],
+    },
+  },
+  {
+    name: TOOL_NAMES.GET_SESSION_RECEIPT,
+    description: `Fetch the signed receipt of a closed session. Either participant can, not only the one that closed it. Use this when the other agent closed the session. Returns the receipt JWS ('receipt') and a readable copy decoded from it, like parafe_close_session. Fails if the session isn't closed yet.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        session_id: {
+          type: 'string',
+          description: "Session ID (starts with 'sess_').",
+        },
+      },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: TOOL_NAMES.CREATE_PRESENTATION_PROOF,
+    description: `Create the presentation proof to send along with a consent token when you present it to the target agent (for example in the Parafe A2A extension's consent data, field 'proof'). Consent tokens are bound to your key; the proof, signed with your private key, shows the target that the token is being presented by its rightful holder. Make a fresh proof for every message.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        consent_token: {
+          type: 'string',
+          description: 'The consent token you are presenting.',
+        },
+        message_id: {
+          type: 'string',
+          description: 'Optional: the ID of the A2A message the token travels in, so the proof only fits that message.',
+        },
+      },
+      required: ['consent_token'],
     },
   },
 ];

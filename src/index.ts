@@ -14,7 +14,7 @@ import { schemas } from './schemas.js';
 
 // ── Package version (injected at build or read from package.json) ──
 
-const VERSION = '0.3.1';
+const VERSION = '0.4.0';
 
 // ── Configuration ──
 
@@ -222,12 +222,15 @@ async function handleToolCall(
         name: args.name as string,
         type: args.type as 'personal' | 'enterprise',
         owner: args.owner as string,
+        keyAlgorithm: args.key_algorithm as 'Ed25519' | 'P-256' | undefined,
         scopePolicies: args.scope_policies as Record<string, {
           permissions?: string[];
           exclusions?: string[];
           minimum_authorization_modality?: 'autonomous' | 'attested' | 'verified';
           minimum_identity_assurance?: 'self_registered' | 'registered';
           minimum_verification_tier?: 'unverified' | 'email_verified' | 'domain_verified' | 'org_verified';
+          minimum_initiator_proof?: 'pop' | 'credential';
+          description?: string;
         }> | undefined,
       });
 
@@ -244,7 +247,9 @@ async function handleToolCall(
       // Return without exposing the private key
       const response: Record<string, unknown> = {
         agentId: result.agentId,
+        did: result.did,
         publicKey: result.publicKey,
+        credentialSdJwt: result.credentialSdJwt,
         verificationTier: result.verificationTier,
         identityAssurance: result.identityAssurance,
         issuedAt: result.issuedAt,
@@ -308,6 +313,7 @@ async function handleToolCall(
         consentToken: args.consent_token as string,
         action: args.action as string,
         sessionId: args.session_id as string,
+        ...(args.presentation_proof ? { presentationProof: args.presentation_proof as string } : {}),
       });
     }
 
@@ -331,7 +337,20 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.VERIFY_RECEIPT: {
-      return client.verifyReceipt(args.receipt as Parameters<typeof client.verifyReceipt>[0]);
+      // A JWS string, an SDK receipt (its `receipt` field is the JWS), or a v1 receipt object.
+      const r = args.receipt as string | Record<string, unknown>;
+      if (typeof r === 'string') return client.verifyReceipt(r);
+      if (typeof r.receipt === 'string') return client.verifyReceipt(r.receipt);
+      const issued = (r.issued ?? r.receipt ?? r) as Record<string, unknown>;
+      return client.verifyReceipt({ formatVersion: 1, receiptId: issued.receipt_id as string, sessionId: issued.session_id as string, issued });
+    }
+
+    case TOOL_NAMES.GET_SESSION_RECEIPT: {
+      return client.getReceipt(args.session_id as string);
+    }
+
+    case TOOL_NAMES.CREATE_PRESENTATION_PROOF: {
+      return { proof: await client.createPresentationProof(args.consent_token as string, args.message_id as string | undefined) };
     }
 
     case TOOL_NAMES.REVOKE_AGENT: {
@@ -350,13 +369,13 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.GET_PUBLIC_KEY: {
-      return client.getPublicKey();
+      return client.getJwks();
     }
 
     case TOOL_NAMES.VERIFY_CONSENT_LOCALLY: {
       return client.verifyConsentLocally(
         args.consent_token as string,
-        args.broker_public_key as string,
+        (args.broker_public_key as string | undefined) || undefined,
       );
     }
 
@@ -381,7 +400,7 @@ async function handleResourceRead(
   }
 
   if (uri === 'parafe://public-key') {
-    return JSON.stringify(await client.getPublicKey(), null, 2);
+    return JSON.stringify(await client.getJwks(), null, 2);
   }
 
   // parafe://session/{sessionId}
@@ -468,6 +487,8 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.GET_PUBLIC_KEY, desc(TOOL_NAMES.GET_PUBLIC_KEY), schemas.get_public_key, h(TOOL_NAMES.GET_PUBLIC_KEY));
   server.tool(TOOL_NAMES.VERIFY_CONSENT_LOCALLY, desc(TOOL_NAMES.VERIFY_CONSENT_LOCALLY), schemas.verify_consent_locally, h(TOOL_NAMES.VERIFY_CONSENT_LOCALLY));
   server.tool(TOOL_NAMES.GET_AGENT_METRICS, desc(TOOL_NAMES.GET_AGENT_METRICS), schemas.get_agent_metrics, h(TOOL_NAMES.GET_AGENT_METRICS));
+  server.tool(TOOL_NAMES.GET_SESSION_RECEIPT, desc(TOOL_NAMES.GET_SESSION_RECEIPT), schemas.get_session_receipt, h(TOOL_NAMES.GET_SESSION_RECEIPT));
+  server.tool(TOOL_NAMES.CREATE_PRESENTATION_PROOF, desc(TOOL_NAMES.CREATE_PRESENTATION_PROOF), schemas.create_presentation_proof, h(TOOL_NAMES.CREATE_PRESENTATION_PROOF));
 
   // Register static resources
   for (const resDef of RESOURCE_DEFINITIONS) {

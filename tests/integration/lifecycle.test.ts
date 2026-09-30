@@ -135,12 +135,9 @@ describe('Trust lifecycle', () => {
     expect(consent.permitted).toBe(true);
 
     // Verify consent token locally (no network)
-    const publicKeyResult = await clientA.getPublicKey();
-    const localVerify = await clientA.verifyConsentLocally(
-      session.consentToken.token,
-      publicKeyResult.publicKey,
-    );
-    expect(localVerify).toBeDefined();
+    const localVerify = await clientA.verifyConsentLocally(session.consentToken.token); // JWKS fetched and cached
+    expect(localVerify.valid).toBe(true);
+    expect(localVerify.keyThumbprint).toBeTruthy();
 
     // Record an action
     await clientA.recordAction({
@@ -154,7 +151,8 @@ describe('Trust lifecycle', () => {
     const receipt = await clientA.closeSession(session.sessionId);
     expect(receipt).toBeDefined();
     expect(receipt.receiptId).toBeDefined();
-    expect(receipt.signature).toBeDefined();
+    expect(receipt.receipt.split(".")).toHaveLength(3); // the receipt is a JWS
+    expect((await clientB.getReceipt(session.sessionId) as { receipt: string }).receipt).toBe(receipt.receipt);
 
     // Verify the receipt signature
     const verification = await clientA.verifyReceipt(receipt);

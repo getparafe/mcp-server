@@ -11,8 +11,8 @@ export const RESOURCE_DEFINITIONS = [
   },
   {
     uri: 'parafe://public-key',
-    name: 'Parafe Broker Public Key',
-    description: "The broker's current Ed25519 public key for independent signature verification.",
+    name: 'Parafe Broker Keys',
+    description: "The broker's signing keys (JWKS: the active ES256 key and retired keys), for independent signature verification.",
     mimeType: 'application/json',
   },
 ];

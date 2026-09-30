@@ -76,7 +76,7 @@ Your agent now has 15 trust tools. The typical flow:
 2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
 3. **Handshake** — `parafe_initiate_handshake` starts mutual authentication; the target calls `parafe_complete_handshake`
 4. **Interact** — `parafe_verify_consent` and `parafe_record_action` govern the scoped exchange
-5. **Close** — `parafe_close_session` generates a signed receipt of the session's trust context, verifiable by anyone who holds it
+5. **Close** — `parafe_close_session` generates a signed receipt (a JWS) of the session's trust context, verifiable by anyone who holds it; the other participant fetches it with `parafe_get_session_receipt`
 
 ## Environment Variables
 
@@ -92,19 +92,21 @@ Your agent now has 15 trust tools. The typical flow:
 | Tool | Description |
 |------|-------------|
 | `parafe_discover` | Fetch a target agent's agent card to learn its Parafe trust requirements |
-| `parafe_register` | Register a new agent identity with Ed25519 cryptographic credentials |
+| `parafe_register` | Register a new agent identity (Ed25519 or P-256 key; JWT and SD-JWT VC credentials) |
 | `parafe_initiate_handshake` | Start mutual authentication with a target agent |
 | `parafe_complete_handshake` | Complete a handshake initiated by another agent |
 | `parafe_escalate_scope` | Request additional scope within an existing session |
-| `parafe_verify_consent` | Check if an action is permitted by a consent token |
+| `parafe_verify_consent` | Check if an action is permitted by a consent token (and, with `presentation_proof`, that it's presented by its rightful holder) |
 | `parafe_record_action` | Log an action within an active session |
 | `parafe_close_session` | Close a session and generate a signed receipt |
-| `parafe_verify_receipt` | Verify a receipt's Ed25519 signature |
+| `parafe_get_session_receipt` | Fetch a closed session's receipt (either participant) |
+| `parafe_verify_receipt` | Verify a receipt's signature |
 | `parafe_revoke_agent` | Revoke an agent identity |
-| `parafe_renew_credential` | Renew a credential to the org's current verification tier |
+| `parafe_renew_credential` | Renew a credential (tier changed, or within 7 days of expiry) |
 | `parafe_update_scope_policies` | Update an agent's accepted scope policies |
-| `parafe_get_public_key` | Get the broker's Ed25519 public key |
-| `parafe_verify_consent_locally` | Verify a consent token offline using the broker's public key |
+| `parafe_get_public_key` | Get the broker's signing keys (JWKS) |
+| `parafe_verify_consent_locally` | Verify a consent token offline against the broker's keys |
+| `parafe_create_presentation_proof` | Proof to send with a consent token you present (tokens are bound to your key) |
 | `parafe_get_agent_metrics` | Get reputation metrics for an agent (trust signals from interaction history) |
 
 ## Resources
@@ -113,7 +115,7 @@ Your agent now has 15 trust tools. The typical flow:
 |-----|-------------|
 | `parafe://agent` | Current agent identity and credential status |
 | `parafe://session/{sessionId}` | Session details, participants, consent tokens |
-| `parafe://public-key` | Broker's Ed25519 public key |
+| `parafe://public-key` | Broker's signing keys (JWKS) |
 
 ## Transports
 
@@ -133,7 +135,7 @@ Connect to `http://localhost:3001/mcp` from your MCP client.
 
 ## How It Works
 
-This MCP server wraps the [@getparafe/sdk](https://github.com/getparafe/sdk). Each tool call maps to an SDK method. The SDK handles Ed25519 cryptography, challenge signing, and credential encryption internally.
+This MCP server wraps the [@getparafe/sdk](https://github.com/getparafe/sdk). Each tool call maps to an SDK method. The SDK handles the cryptography (Ed25519 or P-256 agent keys, challenge signing, a proof of possession on every request made as your agent) and credential encryption internally.
 
 ```
 MCP Client (Claude, Cursor, etc.)

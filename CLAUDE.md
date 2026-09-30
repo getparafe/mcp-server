@@ -9,7 +9,7 @@ MCP tool server for the Parafe Trust Broker. Wraps `@getparafe/sdk` to expose tr
 - `src/schemas.ts` — Zod schemas for tool parameters (required by MCP SDK)
 - `src/resources.ts` — MCP resource definitions
 - `src/bin/parafe-mcp.ts` — CLI entry point for `npx` execution
-- `tests/unit/server.test.ts` — Unit tests (37 tests, no network)
+- `tests/unit/server.test.ts` — Unit tests (46 tests, no network)
 - `tests/integration/lifecycle.test.ts` — Integration tests (4 tests, self-bootstrapping against live broker)
 
 ## Running
