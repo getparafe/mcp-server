@@ -70,7 +70,7 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
 
 ### 3. Use It
 
-Your agent now has 15 trust tools. The typical flow:
+Your agent now has 18 trust tools. The typical flow:
 
 1. **Discover** — `parafe_discover` fetches the target agent's agent card to learn its trust requirements
 2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
@@ -83,7 +83,7 @@ Your agent now has 15 trust tools. The typical flow:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PARAFE_BROKER_URL` | Yes | — | Parafe broker API URL |
-| `PARAFE_API_KEY` | Yes | — | API key from the developer portal |
+| `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no owner) and returns a claim link: the person it acts for opens it, signs in and approves (`parafe_create_claim_link` makes a new one) |
 | `PARAFE_CREDENTIALS_PATH` | No | `~/.parafe/credentials.enc` | Encrypted credential file path |
 | `PARAFE_CREDENTIALS_PASSPHRASE` | No | — | Passphrase for credential encryption. If not set, credentials are held in memory only. |
 
@@ -98,6 +98,7 @@ Your agent now has 15 trust tools. The typical flow:
 | `parafe_escalate_scope` | Request additional scope within an existing session |
 | `parafe_verify_consent` | Check if an action is permitted by a consent token (and, with `presentation_proof`, that it's presented by its rightful holder) |
 | `parafe_record_action` | Log an action within an active session |
+| `parafe_create_claim_link` | A claim link for an agent registered without an API key: the person it acts for opens it and approves, and the agent becomes theirs |
 | `parafe_close_session` | Close a session and generate a signed receipt |
 | `parafe_get_session_receipt` | Fetch a closed session's receipt (either participant) |
 | `parafe_verify_receipt` | Verify a receipt's signature |

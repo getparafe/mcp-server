@@ -14,13 +14,14 @@ import { schemas } from './schemas.js';
 
 // ── Package version (injected at build or read from package.json) ──
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 
 // ── Configuration ──
 
 export interface ServerConfig {
   brokerUrl: string;
-  apiKey: string;
+  /** Optional since 0.5.0: without one, parafe_register self-registers (no owner) and returns a claim link. */
+  apiKey?: string;
   credentialsPath: string;
   credentialsPassphrase?: string;
 }
@@ -32,14 +33,13 @@ export function loadConfig(): ServerConfig {
   if (!brokerUrl) {
     throw new Error('PARAFE_BROKER_URL environment variable is required');
   }
-  if (!apiKey) {
-    throw new Error('PARAFE_API_KEY environment variable is required');
-  }
+  // No API key: the agent registers itself (self_registered, no owner) and the
+  // person it acts for claims it through a claim link (parafe_create_claim_link).
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
   return {
     brokerUrl,
-    apiKey,
+    apiKey: apiKey || undefined,
     credentialsPath: process.env.PARAFE_CREDENTIALS_PATH || `${homeDir}/.parafe/credentials.enc`,
     credentialsPassphrase: process.env.PARAFE_CREDENTIALS_PASSPHRASE,
   };
@@ -361,6 +361,10 @@ async function handleToolCall(
       return client.renewCredential(args.agent_id as string);
     }
 
+    case TOOL_NAMES.CREATE_CLAIM_LINK: {
+      return client.createClaimLink();
+    }
+
     case TOOL_NAMES.UPDATE_SCOPE_POLICIES: {
       return client.updateScopePolicies(
         args.agent_id as string,
@@ -411,7 +415,7 @@ async function handleResourceRead(
     const res = await fetch(`${config.brokerUrl}/admin/sessions/${sessionId}`, {
       headers: {
         'User-Agent': `@getparafe/mcp-server/${VERSION}`,
-        'x-api-key': config.apiKey,
+        ...(config.apiKey ? { 'x-api-key': config.apiKey } : {}),
       },
     });
     if (!res.ok) {
@@ -489,6 +493,7 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.GET_AGENT_METRICS, desc(TOOL_NAMES.GET_AGENT_METRICS), schemas.get_agent_metrics, h(TOOL_NAMES.GET_AGENT_METRICS));
   server.tool(TOOL_NAMES.GET_SESSION_RECEIPT, desc(TOOL_NAMES.GET_SESSION_RECEIPT), schemas.get_session_receipt, h(TOOL_NAMES.GET_SESSION_RECEIPT));
   server.tool(TOOL_NAMES.CREATE_PRESENTATION_PROOF, desc(TOOL_NAMES.CREATE_PRESENTATION_PROOF), schemas.create_presentation_proof, h(TOOL_NAMES.CREATE_PRESENTATION_PROOF));
+  server.tool(TOOL_NAMES.CREATE_CLAIM_LINK, desc(TOOL_NAMES.CREATE_CLAIM_LINK), schemas.create_claim_link, h(TOOL_NAMES.CREATE_CLAIM_LINK));
 
   // Register static resources
   for (const resDef of RESOURCE_DEFINITIONS) {

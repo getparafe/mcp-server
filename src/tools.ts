@@ -25,6 +25,7 @@ export const TOOL_NAMES = {
   GET_AGENT_METRICS: 'parafe_get_agent_metrics',
   GET_SESSION_RECEIPT: 'parafe_get_session_receipt',
   CREATE_PRESENTATION_PROOF: 'parafe_create_presentation_proof',
+  CREATE_CLAIM_LINK: 'parafe_create_claim_link',
 } as const;
 
 // ── Tool definitions (name, description, inputSchema) ──
@@ -57,7 +58,9 @@ Always discover before handshaking. The agent card tells you whether your creden
     name: TOOL_NAMES.REGISTER,
     description: `Register a new agent identity with the Parafe trust network. This generates a key pair (Ed25519 by default, or P-256 for AP2 interop), sends the public key to the Parafe broker, and receives a signed credential (a JWT, plus the same identity as an SD-JWT VC that binds your key). Call this once to establish your agent's identity — credentials are saved automatically and persist across sessions. Your private key never leaves this server; it signs a proof of possession on every request made as your agent.
 
-You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.`,
+You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.
+
+Registered without an API key, the agent has no owner (self_registered, unverified) and the result includes claimLink: show its url to the person you act for so they can verify you (see parafe_create_claim_link).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -323,7 +326,7 @@ Use this when an agent should be decommissioned or if credentials may have been 
   },
   {
     name: TOOL_NAMES.RENEW_CREDENTIAL,
-    description: `Renew an agent's credential. The broker re-issues it when the owner's verification tier has changed (e.g. after email or domain verification), or when the credential is expired or within 7 days of expiry; otherwise it returns renewed: false.
+    description: `Renew an agent's credential. The broker re-issues it when the owner's verification tier has changed (e.g. after email or domain verification), when the credential doesn't show the agent's current owner yet (identity_changed, e.g. after someone claimed it), or when the credential is expired or within 7 days of expiry; otherwise it returns renewed: false.
 
 Credentials expire after 30 days. Renew in the last week to keep trust capabilities uninterrupted.`,
     inputSchema: {
@@ -335,6 +338,17 @@ Credentials expire after 30 days. Renew in the last week to keep trust capabilit
         },
       },
       required: ['agent_id'],
+    },
+  },
+  {
+    name: TOOL_NAMES.CREATE_CLAIM_LINK,
+    description: `Get a claim link for this agent, when it registered without an API key and has no owner. Show the url to the person you act for: they open it, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
+
+The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed if you already have an owner.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
     },
   },
   {

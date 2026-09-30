@@ -26,9 +26,9 @@ async function main() {
     console.error('');
     console.error('Required environment variables:');
     console.error('  PARAFE_BROKER_URL    Parafe broker API URL');
-    console.error('  PARAFE_API_KEY       Developer API key from the Parafe portal');
     console.error('');
     console.error('Optional:');
+    console.error('  PARAFE_API_KEY                  Developer API key from the Parafe portal. Without one, the agent self-registers and gets a claim link for the person it acts for.');
     console.error('  PARAFE_CREDENTIALS_PATH         Path to encrypted credential file (default: ~/.parafe/credentials.enc)');
     console.error('  PARAFE_CREDENTIALS_PASSPHRASE   Passphrase for credential encryption');
     console.error('  PARAFE_MCP_AUTH_TOKEN            Bearer token for HTTP transport authentication');

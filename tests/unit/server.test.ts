@@ -14,8 +14,8 @@ import { loadConfig, createServer, discoverAgentCard, PARAFE_EXTENSION_URIS, typ
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 17 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(17);
+  it('should define exactly 18 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(18);
   });
 
   it('adds parafe_get_session_receipt and parafe_create_presentation_proof (0.4.0)', () => {
@@ -99,6 +99,11 @@ describe('Tool definitions', () => {
   it('parafe_close_session should require session_id', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.CLOSE_SESSION);
     expect(tool?.inputSchema.required).toContain('session_id');
+  });
+
+  it('parafe_create_claim_link takes no input (it acts as the loaded agent)', () => {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.CREATE_CLAIM_LINK);
+    expect(tool?.inputSchema.required).toHaveLength(0);
   });
 
   it('parafe_get_public_key should have no required fields', () => {
@@ -233,10 +238,10 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow('PARAFE_BROKER_URL');
   });
 
-  it('should throw if PARAFE_API_KEY is missing', () => {
+  it('allows no PARAFE_API_KEY: the agent self-registers and is claimed (0.5.0)', () => {
     process.env.PARAFE_BROKER_URL = 'https://broker.example.com';
     delete process.env.PARAFE_API_KEY;
-    expect(() => loadConfig()).toThrow('PARAFE_API_KEY');
+    expect(loadConfig().apiKey).toBeUndefined();
   });
 
   it('should load config from env vars', () => {
