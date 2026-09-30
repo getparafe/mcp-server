@@ -25,7 +25,7 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
       "command": "npx",
       "args": ["@getparafe/mcp-server"],
       "env": {
-        "PARAFE_BROKER_URL": "https://parafe-production-9bc9.up.railway.app",
+        "PARAFE_BROKER_URL": "https://api.parafe.ai",
         "PARAFE_API_KEY": "prf_key_live_...",
         "PARAFE_CREDENTIALS_PASSPHRASE": "your-passphrase"
       }
@@ -43,7 +43,7 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
       "command": "npx",
       "args": ["@getparafe/mcp-server"],
       "env": {
-        "PARAFE_BROKER_URL": "https://parafe-production-9bc9.up.railway.app",
+        "PARAFE_BROKER_URL": "https://api.parafe.ai",
         "PARAFE_API_KEY": "prf_key_live_..."
       }
     }
@@ -60,7 +60,7 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
       "command": "npx",
       "args": ["@getparafe/mcp-server"],
       "env": {
-        "PARAFE_BROKER_URL": "https://parafe-production-9bc9.up.railway.app",
+        "PARAFE_BROKER_URL": "https://api.parafe.ai",
         "PARAFE_API_KEY": "prf_key_live_..."
       }
     }
@@ -76,7 +76,7 @@ Your agent now has 15 trust tools. The typical flow:
 2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
 3. **Handshake** — `parafe_initiate_handshake` starts mutual authentication; the target calls `parafe_complete_handshake`
 4. **Interact** — `parafe_verify_consent` and `parafe_record_action` govern the scoped exchange
-5. **Close** — `parafe_close_session` generates a signed receipt both parties can verify
+5. **Close** — `parafe_close_session` generates a signed receipt of the session's trust context, verifiable by anyone who holds it
 
 ## Environment Variables
 

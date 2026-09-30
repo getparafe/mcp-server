@@ -8,7 +8,7 @@ const authorizationEvidence = z.object({
   instruction: z.string().describe('What the human instructed (required for attested and verified).'),
   platform: z.string().describe('Platform that attested or verified the instruction (required for attested and verified).'),
   timestamp: z.string().optional().describe('ISO 8601 timestamp of when the instruction was given. Auto-set to now if omitted.'),
-  user_signature: z.string().optional().describe("Cryptographic signature from user device (required for 'verified' modality only)."),
+  user_signature: z.string().optional().describe("Not accepted: the broker can't check a bare signature string, so it refuses 'verified'."),
 }).optional();
 
 const scopePolicyValue = z.object({
@@ -35,9 +35,9 @@ export const schemas = {
     target_agent_id: z.string().describe("Parafe agent ID of the agent to handshake with (starts with 'prf_agent_')."),
     scope: z.string().describe("Type of interaction (e.g., 'flight-rebooking', 'data-sharing', 'payment-processing')."),
     permissions: z.array(z.string()).describe('Specific actions you are requesting permission for within the scope.'),
-    authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional().describe("Level of human authorization. 'autonomous' = agent acting alone (default). 'attested' = agent claims human instructed this. 'verified' = cryptographic proof of human approval."),
-    authorization_evidence: authorizationEvidence.describe("Evidence for 'attested' or 'verified' modality. Required if modality is not 'autonomous'."),
-    context: z.record(z.string(), z.unknown()).optional().describe('Optional context passed to the broker and visible in receipts (e.g., user ID, account reference).'),
+    authorization_modality: z.enum(['autonomous', 'attested', 'verified']).optional().describe("Level of human authorization. 'autonomous' = agent acting alone (default). 'attested' = agent states a human instructed this. 'verified' = a human signature the broker has checked; not accepted yet (the broker returns verified_evidence_unverifiable)."),
+    authorization_evidence: authorizationEvidence.describe("Evidence for the 'attested' modality. Required if modality is not 'autonomous'."),
+    context: z.record(z.string(), z.unknown()).optional().describe('Optional context stored by the broker with the handshake (e.g., user ID, account reference). It is not shown on the receipt.'),
   },
 
   complete_handshake: {

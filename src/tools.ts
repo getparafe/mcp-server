@@ -102,7 +102,7 @@ You must specify:
 
 The target agent must complete the handshake (using parafe_complete_handshake) within 5 minutes. Once complete, you receive a scoped consent token that defines exactly what this interaction is authorized to do.
 
-Use 'autonomous' authorization (default) when acting on your own. Use 'attested' when you're acting on a human's instruction. Use 'verified' when you have cryptographic proof of human approval.`,
+Use 'autonomous' authorization (default) when acting on your own. Use 'attested' when you're acting on a human's instruction. Don't use 'verified' yet: the broker refuses it (verified_evidence_unverifiable) until it can check a user-signed AP2 mandate, so a scope that requires 'verified' can't be reached today.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -122,21 +122,21 @@ Use 'autonomous' authorization (default) when acting on your own. Use 'attested'
         authorization_modality: {
           type: 'string',
           enum: ['autonomous', 'attested', 'verified'],
-          description: "Level of human authorization. 'autonomous' = agent acting alone (default). 'attested' = agent claims human instructed this. 'verified' = cryptographic proof of human approval.",
+          description: "Level of human authorization. 'autonomous' = agent acting alone (default). 'attested' = agent states a human instructed this. 'verified' = a human signature the broker has checked; not accepted yet (the broker returns verified_evidence_unverifiable).",
         },
         authorization_evidence: {
           type: 'object',
-          description: "Evidence for 'attested' or 'verified' modality. Required if modality is not 'autonomous'.",
+          description: "Evidence for the 'attested' modality. Required if modality is not 'autonomous'.",
           properties: {
             instruction: { type: 'string', description: 'What the human instructed (required for attested and verified).' },
             platform: { type: 'string', description: 'Platform that attested or verified the instruction (required for attested and verified).' },
             timestamp: { type: 'string', description: 'ISO 8601 timestamp of when the instruction was given. Auto-set to now if omitted.' },
-            user_signature: { type: 'string', description: "Cryptographic signature from user device (required for 'verified' modality only)." },
+            user_signature: { type: 'string', description: "Not accepted: the broker can't check a bare signature string, so it refuses 'verified'." },
           },
         },
         context: {
           type: 'object',
-          description: 'Optional context passed to the broker and visible in receipts (e.g., user ID, account reference).',
+          description: 'Optional context stored by the broker with the handshake (e.g., user ID, account reference). It is not shown on the receipt.',
         },
       },
       required: ['target_agent_id', 'scope', 'permissions'],
@@ -199,7 +199,7 @@ For example, if a flight-rebooking session needs to also process a payment, you 
             instruction: { type: 'string', description: 'What the human instructed (required for attested and verified).' },
             platform: { type: 'string', description: 'Platform that attested or verified the instruction (required for attested and verified).' },
             timestamp: { type: 'string', description: 'ISO 8601 timestamp of when the instruction was given. Auto-set to now if omitted.' },
-            user_signature: { type: 'string', description: "Cryptographic signature from user device (required for 'verified' modality only)." },
+            user_signature: { type: 'string', description: "Not accepted: the broker can't check a bare signature string, so it refuses 'verified'." },
           },
         },
       },
@@ -232,7 +232,7 @@ Returns whether the action is permitted, and if not, why (e.g., action is in the
   },
   {
     name: TOOL_NAMES.RECORD_ACTION,
-    description: `Log an action you're performing within an active session. This creates an auditable record that appears in the session's signed receipt.
+    description: `Log an action you're performing within an active session. The broker records it on the session and counts it in your reputation signals. It does not appear on the session's signed receipt yet (per-action receipts are planned).
 
 Record each significant action you take during the interaction. If a consent token is provided, the broker validates that the action is within scope and rejects it if not.`,
     inputSchema: {
@@ -260,9 +260,9 @@ Record each significant action you take during the interaction. If a consent tok
   },
   {
     name: TOOL_NAMES.CLOSE_SESSION,
-    description: `Close an active session and generate a cryptographically signed receipt. The receipt is an Ed25519-signed record of the trust context: who participated, what was consented to, what actions were recorded, and when.
+    description: `Close an active session and generate a cryptographically signed receipt. The receipt is an Ed25519-signed record of the trust context: who participated, the handshake, every consent token issued (scope, permissions, authorization), and when. It does not list recorded actions or exclusions yet.
 
-Both parties can independently verify this receipt. It serves as neutral, tamper-proof evidence of the interaction.
+Either participant may close; only the agent that closes receives the receipt, so share it if the other side needs it. Anyone holding it can independently verify it; the receipt's 'issued' field is the exact signed form to store or verify. It serves as neutral, tamper-proof evidence of the session's trust context.
 
 Always close sessions when the interaction is complete.`,
     inputSchema: {
