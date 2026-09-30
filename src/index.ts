@@ -14,7 +14,7 @@ import { schemas } from './schemas.js';
 
 // ── Package version (injected at build or read from package.json) ──
 
-const VERSION = '0.5.0';
+const VERSION = '0.7.0';
 
 // ── Configuration ──
 
