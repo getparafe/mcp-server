@@ -322,10 +322,10 @@ describe('createServer', () => {
 
 describe('claim links in tool results', () => {
   const config: ServerConfig = { brokerUrl: 'https://broker.example.com', credentialsPath: '/tmp/unused.enc' };
-  const LINK = { url: 'https://platform.parafe.ai/claim?code=7KQ2-M9XD-4H', code: '7KQ2-M9XD-4H', pairingCode: 'K7-Q2', expiresAt: 'later' };
+  const LINK = { url: 'https://platform.parafe.ai/claim?code=7KQ2-M9XD-4H', code: '7KQ2-M9XD-4H', expiresAt: 'later' };
   const parse = (r: { content: { text: string }[] }) => JSON.parse(r.content[0].text);
 
-  it('parafe_register returns the claim link with its pairing code', async () => {
+  it('parafe_register returns the claim link', async () => {
     const client = {
       credentialStatus: () => ({ loaded: false }),
       register: async () => ({ agentId: 'prf_agent_new', claimLink: LINK, privateKey: 'secret' }),
@@ -337,12 +337,12 @@ describe('claim links in tool results', () => {
 
   it('a refused handshake returns the claim link and hint', async () => {
     const client = {
-      handshake: async () => { throw new ForbiddenError('needs a claimed agent', 'identity_insufficient', { claim: LINK, hint: 'Ask the person you act for to open this link to verify you, and show them the pairing code.' }); },
+      handshake: async () => { throw new ForbiddenError('needs a claimed agent', 'identity_insufficient', { claim: LINK, hint: 'Ask the person you act for to open this link to verify you, and tell them its code.' }); },
     } as unknown as ParafeClient;
     const out = parse(await wrapHandler(TOOL_NAMES.INITIATE_HANDSHAKE, client, config)({ target_agent_id: 'prf_agent_shop', scope: 'place-order', permissions: ['create_order'] }));
     expect(out.code).toBe('identity_insufficient');
     expect(out.claim).toEqual(LINK);
-    expect(out.hint).toMatch(/pairing code/);
+    expect(out.hint).toMatch(/tell them its code/);
   });
 });
 
@@ -382,9 +382,11 @@ describe('Tool description quality', () => {
     expect(reg?.description).toContain('P-256 by default');
   });
 
-  it('register and create_claim_link tell the agent to show the pairing code with the link', () => {
+  it("register and create_claim_link tell the agent to share the link's code, and there's no second code", () => {
     for (const name of [TOOL_NAMES.REGISTER, TOOL_NAMES.CREATE_CLAIM_LINK]) {
-      expect(TOOL_DEFINITIONS.find((t) => t.name === name)?.description).toContain('pairingCode');
+      const d = TOOL_DEFINITIONS.find((t) => t.name === name)?.description ?? '';
+      expect(d).toContain('tell them its code');
+      expect(d).not.toMatch(/pairing/i);
     }
   });
 

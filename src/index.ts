@@ -261,7 +261,7 @@ async function handleToolCall(
         issuedAt: result.issuedAt,
         expiresAt: result.expiresAt,
       };
-      // Self-registered: show the person the url and the pairing code.
+      // Self-registered: show the person the url and tell them its code.
       if (result.claimLink) response.claimLink = result.claimLink;
       if (persistenceWarning) {
         response.warning = persistenceWarning;
@@ -482,8 +482,7 @@ export function wrapHandler(
         detail.code = (err as ParafeError & { code?: string }).code;
         detail.statusCode = (err as ParafeError & { statusCode?: number }).statusCode;
       }
-      // A refusal for identity or tier carries a claim link (with its pairing
-      // code) and a hint; a reputation floor says what it measured.
+      // A refusal for identity or tier carries a claim link and a hint; a reputation floor says what it measured.
       if (err instanceof ForbiddenError) {
         if (err.claim) detail.claim = err.claim;
         if (err.hint) detail.hint = err.hint;

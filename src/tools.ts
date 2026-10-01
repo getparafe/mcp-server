@@ -65,7 +65,7 @@ Always discover before handshaking. The agent card tells you whether your creden
 
 You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.
 
-Registered without an API key, the agent has no operator or principal (self_registered, unverified), its public name is its agent ID, and the result includes claimLink: show the person you act for its url AND its pairingCode (e.g. "The page will show the code K7-Q2") so they can verify you; the claim page shows the same code (see parafe_create_claim_link).`,
+Registered without an API key, the agent has no operator or principal (self_registered, unverified), its public name is its agent ID, and the result includes claimLink: show the person you act for its url and tell them its code (e.g. "The page will show the code 7KQ2-M9XD-4H") so they can verify you; the claim page shows the code first (see parafe_create_claim_link).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -391,7 +391,7 @@ Credentials expire after 30 days. Renew in the last week to keep trust capabilit
   },
   {
     name: TOOL_NAMES.CREATE_CLAIM_LINK,
-    description: `Get a claim link for this agent, when no person or org has claimed it yet (it registered without an API key, or a platform registered it for one of its users). Show the person you act for the url AND the pairingCode (e.g. "The page will show the code K7-Q2"): they open it, check the page shows the same code, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
+    description: `Get a claim link for this agent, when no person or org has claimed it yet (it registered without an API key, or a platform registered it for one of its users). Show the person you act for the url and tell them its code (e.g. "The page will show the code 7KQ2-M9XD-4H"): they open it, check the page shows the same code, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
 
 The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed once a person or org has claimed you.`,
     inputSchema: {
