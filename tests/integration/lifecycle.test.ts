@@ -40,7 +40,7 @@ async function bootstrap(label: string): Promise<string> {
   return data.api_key.key;
 }
 
-// Staging allows 5 signups per hour per IP: tests that don't need their own org share one.
+// The broker allows 100 signups per hour per IP (5 before 2026-10-01): tests that don't need their own org still share one.
 let sharedKey: Promise<string> | undefined;
 const sharedApiKey = () => (sharedKey ??= bootstrap('shared'));
 
