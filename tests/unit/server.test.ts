@@ -9,7 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization, buildVerifyMandateOptions, buildAp2ReceiptOptions } from '../../src/tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from '../../src/resources.js';
-import { loadConfig, createServer, discoverAgentCard, PARAFE_EXTENSION_URIS, type ServerConfig } from '../../src/index.js';
+import { loadConfig, createServer, discoverAgentCard, wrapHandler, PARAFE_EXTENSION_URIS, type ServerConfig } from '../../src/index.js';
+import { ForbiddenError, type ParafeClient } from '@getparafe/sdk';
 
 // ── Tool definition tests ──
 
@@ -314,6 +315,34 @@ describe('createServer', () => {
     const { client } = createServer(config);
     const status = client.credentialStatus();
     expect(status.loaded).toBe(false);
+  });
+});
+
+// ── Claim links reach the agent (broker SPEC-002 decision 10; review #1, #2) ──
+
+describe('claim links in tool results', () => {
+  const config: ServerConfig = { brokerUrl: 'https://broker.example.com', credentialsPath: '/tmp/unused.enc' };
+  const LINK = { url: 'https://platform.parafe.ai/claim?code=7KQ2-M9XD-4H', code: '7KQ2-M9XD-4H', pairingCode: 'K7-Q2', expiresAt: 'later' };
+  const parse = (r: { content: { text: string }[] }) => JSON.parse(r.content[0].text);
+
+  it('parafe_register returns the claim link with its pairing code', async () => {
+    const client = {
+      credentialStatus: () => ({ loaded: false }),
+      register: async () => ({ agentId: 'prf_agent_new', claimLink: LINK, privateKey: 'secret' }),
+    } as unknown as ParafeClient;
+    const out = parse(await wrapHandler(TOOL_NAMES.REGISTER, client, config)({ type: 'personal' }));
+    expect(out.claimLink).toEqual(LINK);
+    expect(out).not.toHaveProperty('privateKey');
+  });
+
+  it('a refused handshake returns the claim link and hint', async () => {
+    const client = {
+      handshake: async () => { throw new ForbiddenError('needs a claimed agent', 'identity_insufficient', { claim: LINK, hint: 'Ask the person you act for to open this link to verify you, and show them the pairing code.' }); },
+    } as unknown as ParafeClient;
+    const out = parse(await wrapHandler(TOOL_NAMES.INITIATE_HANDSHAKE, client, config)({ target_agent_id: 'prf_agent_shop', scope: 'place-order', permissions: ['create_order'] }));
+    expect(out.code).toBe('identity_insufficient');
+    expect(out.claim).toEqual(LINK);
+    expect(out.hint).toMatch(/pairing code/);
   });
 });
 

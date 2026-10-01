@@ -7,7 +7,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { ParafeClient, ParafeError, type ActionErrorCode, type ReceiptKind } from '@getparafe/sdk';
+import { ParafeClient, ParafeError, ForbiddenError, type ActionErrorCode, type ReceiptKind } from '@getparafe/sdk';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization, buildVerifyMandateOptions, buildAp2ReceiptOptions } from './tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from './resources.js';
 import { schemas } from './schemas.js';
@@ -261,6 +261,8 @@ async function handleToolCall(
         issuedAt: result.issuedAt,
         expiresAt: result.expiresAt,
       };
+      // Self-registered: show the person the url and the pairing code.
+      if (result.claimLink) response.claimLink = result.claimLink;
       if (persistenceWarning) {
         response.warning = persistenceWarning;
       }
@@ -462,7 +464,7 @@ async function handleResourceRead(
 
 // ── Wrap a tool handler with error handling ──
 
-function wrapHandler(
+export function wrapHandler(
   toolName: string,
   client: ParafeClient,
   config: ServerConfig,
@@ -479,6 +481,13 @@ function wrapHandler(
       if (err instanceof ParafeError) {
         detail.code = (err as ParafeError & { code?: string }).code;
         detail.statusCode = (err as ParafeError & { statusCode?: number }).statusCode;
+      }
+      // A refusal for identity or tier carries a claim link (with its pairing
+      // code) and a hint; a reputation floor says what it measured.
+      if (err instanceof ForbiddenError) {
+        if (err.claim) detail.claim = err.claim;
+        if (err.hint) detail.hint = err.hint;
+        if (err.reputation) detail.reputation = err.reputation;
       }
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(detail, null, 2) }],
