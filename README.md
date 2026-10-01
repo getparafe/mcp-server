@@ -84,7 +84,7 @@ Your agent now has 23 trust tools. The typical flow:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PARAFE_BROKER_URL` | Yes | — | Parafe broker API URL |
-| `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no owner) and returns a claim link: the person it acts for opens it, signs in and approves (`parafe_create_claim_link` makes a new one) |
+| `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no operator or principal) and returns a claim link: the person it acts for opens it, signs in and approves (`parafe_create_claim_link` makes a new one) |
 | `PARAFE_CREDENTIALS_PATH` | No | `~/.parafe/credentials.enc` | Encrypted credential file path |
 | `PARAFE_CREDENTIALS_PASSPHRASE` | No | — | Passphrase for credential encryption. If not set, credentials are held in memory only. |
 
@@ -93,7 +93,7 @@ Your agent now has 23 trust tools. The typical flow:
 | Tool | Description |
 |------|-------------|
 | `parafe_discover` | Fetch a target agent's agent card to learn its Parafe trust requirements |
-| `parafe_register` | Register a new agent identity (P-256 key by default, or Ed25519; JWT and SD-JWT VC credentials) |
+| `parafe_register` | Register a new agent identity (P-256 key by default, or Ed25519; JWT and SD-JWT VC credentials). `principal_name`: who it acts for. With an API key, `acts_for_ref` registers it for one of your platform's users (an opaque reference, not an email): you become its operator |
 | `parafe_initiate_handshake` | Start mutual authentication with a target agent |
 | `parafe_complete_handshake` | Complete a handshake initiated by another agent |
 | `parafe_escalate_scope` | Request additional scope within an existing session |

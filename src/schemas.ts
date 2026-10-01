@@ -62,7 +62,8 @@ export const schemas = {
   register: {
     name: z.string().describe('Agent name. Lowercase alphanumeric and hyphens, 3-100 characters.'),
     type: z.enum(['personal', 'enterprise']).describe("Agent type. Use 'enterprise' for business agents, 'personal' for individual agents."),
-    owner: z.string().describe('Organization or individual that owns this agent.'),
+    principal_name: z.string().describe("Who this agent acts for (its principal): a person or organization, as free text. With an API key, the account's own name is used instead."),
+    acts_for_ref: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/).optional().describe("Only with an API key: register this agent for one of your platform's users. Your own opaque reference for the user (1-128 letters, digits, . _ : -); not an email (refused), counterparties see it. You become the agent's operator; it starts unverified until the person claims it."),
     key_algorithm: z.enum(['Ed25519', 'P-256']).optional().describe("Key type. 'P-256' (default; ES256, the key type AP2 mandates and receipts use) or 'Ed25519'."),
     scope_policies: z.record(z.string(), scopePolicyValue).optional().describe('Optional scope policies defining what interactions this agent accepts.'),
   },

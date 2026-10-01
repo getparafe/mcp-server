@@ -20,7 +20,7 @@ const VERSION = '0.8.0';
 
 export interface ServerConfig {
   brokerUrl: string;
-  /** Optional since 0.5.0: without one, parafe_register self-registers (no owner) and returns a claim link. */
+  /** Optional since 0.5.0: without one, parafe_register self-registers (no operator or principal) and returns a claim link. */
   apiKey?: string;
   credentialsPath: string;
   credentialsPassphrase?: string;
@@ -33,7 +33,7 @@ export function loadConfig(): ServerConfig {
   if (!brokerUrl) {
     throw new Error('PARAFE_BROKER_URL environment variable is required');
   }
-  // No API key: the agent registers itself (self_registered, no owner) and the
+  // No API key: the agent registers itself (self_registered, no operator or principal) and the
   // person it acts for claims it through a claim link (parafe_create_claim_link).
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
@@ -221,7 +221,8 @@ async function handleToolCall(
       const result = await client.register({
         name: args.name as string,
         type: args.type as 'personal' | 'enterprise',
-        owner: args.owner as string,
+        principalName: args.principal_name as string,
+        ...(args.acts_for_ref ? { actsFor: { ref: args.acts_for_ref as string } } : {}),
         keyAlgorithm: (args.key_algorithm as 'Ed25519' | 'P-256' | undefined) ?? 'P-256',
         scopePolicies: args.scope_policies as Record<string, {
           permissions?: string[];

@@ -94,11 +94,14 @@ describe('Tool definitions', () => {
     expect(tool?.inputSchema.required).toContain('agent_card_url');
   });
 
-  it('parafe_register should require name, type, owner', () => {
+  it('parafe_register should require name, type, principal_name; acts_for_ref is optional', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.REGISTER);
     expect(tool?.inputSchema.required).toEqual(
-      expect.arrayContaining(['name', 'type', 'owner']),
+      expect.arrayContaining(['name', 'type', 'principal_name']),
     );
+    expect(tool?.inputSchema.required).not.toContain('owner');
+    expect(tool?.inputSchema.properties).toHaveProperty('acts_for_ref');
+    expect(tool?.inputSchema.properties).not.toHaveProperty('owner');
   });
 
   it('parafe_initiate_handshake should require target_agent_id, scope, permissions', () => {

@@ -65,7 +65,7 @@ Always discover before handshaking. The agent card tells you whether your creden
 
 You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.
 
-Registered without an API key, the agent has no owner (self_registered, unverified) and the result includes claimLink: show its url to the person you act for so they can verify you (see parafe_create_claim_link).`,
+Registered without an API key, the agent has no operator or principal (self_registered, unverified) and the result includes claimLink: show its url to the person you act for so they can verify you (see parafe_create_claim_link).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -78,9 +78,13 @@ Registered without an API key, the agent has no owner (self_registered, unverifi
           enum: ['personal', 'enterprise'],
           description: "Agent type. Use 'enterprise' for business agents, 'personal' for individual agents.",
         },
-        owner: {
+        principal_name: {
           type: 'string',
-          description: 'Organization or individual that owns this agent.',
+          description: "Who this agent acts for (its principal): a person or organization, as free text. With an API key, the account's own name is used instead.",
+        },
+        acts_for_ref: {
+          type: 'string',
+          description: "Only with an API key: register this agent for one of your platform's users. Your own opaque reference for the user (1-128 letters, digits, . _ : -); not an email (refused), counterparties see it. You become the agent's operator; it starts unverified until the person claims it.",
         },
         key_algorithm: {
           type: 'string',
@@ -115,7 +119,7 @@ Registered without an API key, the agent has no owner (self_registered, unverifi
           },
         },
       },
-      required: ['name', 'type', 'owner'],
+      required: ['name', 'type', 'principal_name'],
     },
   },
   {
@@ -371,7 +375,7 @@ Use this when an agent should be decommissioned or if credentials may have been 
   },
   {
     name: TOOL_NAMES.RENEW_CREDENTIAL,
-    description: `Renew an agent's credential. The broker re-issues it when the owner's verification tier has changed (e.g. after email or domain verification), when the credential doesn't show the agent's current owner yet (identity_changed, e.g. after someone claimed it), or when the credential is expired or within 7 days of expiry; otherwise it returns renewed: false.
+    description: `Renew an agent's credential. The broker re-issues it when the principal's verification tier has changed (e.g. after email or domain verification), when the credential doesn't show the agent's current principal yet (identity_changed, e.g. after someone claimed it), or when the credential is expired or within 7 days of expiry; otherwise it returns renewed: false.
 
 Credentials expire after 30 days. Renew in the last week to keep trust capabilities uninterrupted.`,
     inputSchema: {
@@ -387,9 +391,9 @@ Credentials expire after 30 days. Renew in the last week to keep trust capabilit
   },
   {
     name: TOOL_NAMES.CREATE_CLAIM_LINK,
-    description: `Get a claim link for this agent, when it registered without an API key and has no owner. Show the url to the person you act for: they open it, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
+    description: `Get a claim link for this agent, when no person or org has claimed it yet (it registered without an API key, or a platform registered it for one of its users). Show the url to the person you act for: they open it, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
 
-The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed if you already have an owner.`,
+The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed once a person or org has claimed you.`,
     inputSchema: {
       type: 'object' as const,
       properties: {},

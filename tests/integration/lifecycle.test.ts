@@ -98,7 +98,7 @@ describe('Trust lifecycle', () => {
     const regA = await clientA.register({
       name: `mcp-agent-a-${suffix}`,
       type: 'personal',
-      owner: 'test-org-a',
+      principalName: 'test-org-a',
     });
     expect(regA.agentId).toBeDefined();
     expect(regA.agentId).toMatch(/^prf_agent_/);
@@ -107,7 +107,7 @@ describe('Trust lifecycle', () => {
     const regB = await clientB.register({
       name: `mcp-agent-b-${suffix}`,
       type: 'personal',
-      owner: 'test-org-b',
+      principalName: 'test-org-b',
     });
     expect(regB.agentId).toBeDefined();
 
@@ -217,8 +217,8 @@ describe('AP2 tools', () => {
     };
 
     const suffix = Date.now().toString(36);
-    await shopper.client.register({ name: `mcp-ap2-shopper-${suffix}`, type: 'personal', owner: 'test' });
-    const shopReg = await call('parafe_register', { name: `mcp-ap2-shop-${suffix}`, type: 'enterprise', owner: 'test' }); // P-256 by default
+    await shopper.client.register({ name: `mcp-ap2-shopper-${suffix}`, type: 'personal', principalName: 'test' });
+    const shopReg = await call('parafe_register', { name: `mcp-ap2-shop-${suffix}`, type: 'enterprise', principal_name: 'test' }); // P-256 by default
     expect(shopReg.isError).toBe(false);
 
     const hs = await shopper.client.handshake({ targetAgentId: shopReg.body.agentId, scope: 'shop', permissions: ['buy'], authorization: { modality: 'autonomous' } });
