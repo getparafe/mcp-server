@@ -65,13 +65,13 @@ Always discover before handshaking. The agent card tells you whether your creden
 
 You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.
 
-Registered without an API key, the agent has no operator or principal (self_registered, unverified) and the result includes claimLink: show its url to the person you act for so they can verify you (see parafe_create_claim_link).`,
+Registered without an API key, the agent has no operator or principal (self_registered, unverified), its public name is its agent ID, and the result includes claimLink: show the person you act for its url AND its pairingCode (e.g. "The page will show the code K7-Q2") so they can verify you; the claim page shows the same code (see parafe_create_claim_link).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
         name: {
           type: 'string',
-          description: 'Agent name. Lowercase alphanumeric and hyphens, 3-100 characters.',
+          description: "Agent name, lowercase alphanumeric and hyphens, 3-100 characters. Required with an API key (unique per operator). Without one (self-registration) optional: shown only to the person on the claim page; your public name is your agent ID.",
         },
         type: {
           type: 'string',
@@ -80,7 +80,7 @@ Registered without an API key, the agent has no operator or principal (self_regi
         },
         principal_name: {
           type: 'string',
-          description: "Who this agent acts for (its principal): a person or organization, as free text. With an API key, the account's own name is used instead.",
+          description: "Who this agent acts for, as free text (at most 100 characters), optional. With an API key, the account's own name is used instead. Without one, it is only what you say you act for, shown on the claim page; it is not in your credential until the person claims you.",
         },
         acts_for_ref: {
           type: 'string',
@@ -119,7 +119,7 @@ Registered without an API key, the agent has no operator or principal (self_regi
           },
         },
       },
-      required: ['name', 'type', 'principal_name'],
+      required: ['type'],
     },
   },
   {
@@ -391,7 +391,7 @@ Credentials expire after 30 days. Renew in the last week to keep trust capabilit
   },
   {
     name: TOOL_NAMES.CREATE_CLAIM_LINK,
-    description: `Get a claim link for this agent, when no person or org has claimed it yet (it registered without an API key, or a platform registered it for one of its users). Show the url to the person you act for: they open it, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
+    description: `Get a claim link for this agent, when no person or org has claimed it yet (it registered without an API key, or a platform registered it for one of its users). Show the person you act for the url AND the pairingCode (e.g. "The page will show the code K7-Q2"): they open it, check the page shows the same code, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
 
 The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed once a person or org has claimed you.`,
     inputSchema: {

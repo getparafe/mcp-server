@@ -94,11 +94,13 @@ describe('Tool definitions', () => {
     expect(tool?.inputSchema.required).toContain('agent_card_url');
   });
 
-  it('parafe_register should require name, type, principal_name; acts_for_ref is optional', () => {
+  it('parafe_register requires only type; name, principal_name and acts_for_ref are optional (broker SPEC-002 decision 10)', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.REGISTER);
-    expect(tool?.inputSchema.required).toEqual(
-      expect.arrayContaining(['name', 'type', 'principal_name']),
-    );
+    expect(tool?.inputSchema.required).toEqual(['type']);
+    expect(tool?.inputSchema.properties).toHaveProperty('name');
+    expect(tool?.inputSchema.properties).toHaveProperty('principal_name');
+    expect(schemas.register.name.isOptional()).toBe(true);
+    expect(schemas.register.principal_name.isOptional()).toBe(true);
     expect(tool?.inputSchema.required).not.toContain('owner');
     expect(tool?.inputSchema.properties).toHaveProperty('acts_for_ref');
     expect(tool?.inputSchema.properties).not.toHaveProperty('owner');
@@ -349,6 +351,12 @@ describe('Tool description quality', () => {
     const alg = (reg?.inputSchema.properties as Record<string, { description: string }>).key_algorithm;
     expect(alg.description).toMatch(/^Key type\. 'P-256' \(default/);
     expect(reg?.description).toContain('P-256 by default');
+  });
+
+  it('register and create_claim_link tell the agent to show the pairing code with the link', () => {
+    for (const name of [TOOL_NAMES.REGISTER, TOOL_NAMES.CREATE_CLAIM_LINK]) {
+      expect(TOOL_DEFINITIONS.find((t) => t.name === name)?.description).toContain('pairingCode');
+    }
   });
 
   it('parafe_register description should mention credential persistence', () => {

@@ -219,9 +219,9 @@ async function handleToolCall(
       }
 
       const result = await client.register({
-        name: args.name as string,
+        ...(args.name ? { name: args.name as string } : {}),
         type: args.type as 'personal' | 'enterprise',
-        principalName: args.principal_name as string,
+        ...(args.principal_name ? { principalName: args.principal_name as string } : {}),
         ...(args.acts_for_ref ? { actsFor: { ref: args.acts_for_ref as string } } : {}),
         keyAlgorithm: (args.key_algorithm as 'Ed25519' | 'P-256' | undefined) ?? 'P-256',
         scopePolicies: args.scope_policies as Record<string, {
