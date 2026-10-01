@@ -63,7 +63,7 @@ export const schemas = {
     name: z.string().describe('Agent name. Lowercase alphanumeric and hyphens, 3-100 characters.'),
     type: z.enum(['personal', 'enterprise']).describe("Agent type. Use 'enterprise' for business agents, 'personal' for individual agents."),
     owner: z.string().describe('Organization or individual that owns this agent.'),
-    key_algorithm: z.enum(['Ed25519', 'P-256']).optional().describe("Key type. 'Ed25519' (default) or 'P-256' (ES256, the key type AP2 mandates use)."),
+    key_algorithm: z.enum(['Ed25519', 'P-256']).optional().describe("Key type. 'P-256' (default; ES256, the key type AP2 mandates and receipts use) or 'Ed25519'."),
     scope_policies: z.record(z.string(), scopePolicyValue).optional().describe('Optional scope policies defining what interactions this agent accepts.'),
   },
 

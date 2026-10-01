@@ -341,6 +341,13 @@ describe('Tool description quality', () => {
     expect(tool?.description).toContain('independently verify');
   });
 
+  it('parafe_register defaults to a P-256 key (Phase 3.5)', () => {
+    const reg = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.REGISTER);
+    const alg = (reg?.inputSchema.properties as Record<string, { description: string }>).key_algorithm;
+    expect(alg.description).toMatch(/^Key type\. 'P-256' \(default/);
+    expect(reg?.description).toContain('P-256 by default');
+  });
+
   it('parafe_register description should mention credential persistence', () => {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.REGISTER);
     expect(tool?.description).toContain('persist across sessions');

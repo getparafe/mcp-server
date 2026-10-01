@@ -218,7 +218,7 @@ describe('AP2 tools', () => {
 
     const suffix = Date.now().toString(36);
     await shopper.client.register({ name: `mcp-ap2-shopper-${suffix}`, type: 'personal', owner: 'test' });
-    const shopReg = await call('parafe_register', { name: `mcp-ap2-shop-${suffix}`, type: 'enterprise', owner: 'test', key_algorithm: 'P-256' });
+    const shopReg = await call('parafe_register', { name: `mcp-ap2-shop-${suffix}`, type: 'enterprise', owner: 'test' }); // P-256 by default
     expect(shopReg.isError).toBe(false);
 
     const hs = await shopper.client.handshake({ targetAgentId: shopReg.body.agentId, scope: 'shop', permissions: ['buy'], authorization: { modality: 'autonomous' } });

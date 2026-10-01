@@ -1,6 +1,6 @@
 {
   "name": "@getparafe/mcp-server",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "MCP tool server for the Parafe Trust Broker — add trust handshakes to any MCP-compatible AI agent",
   "author": "Parafe",
   "license": "MIT",

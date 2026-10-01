@@ -222,7 +222,7 @@ async function handleToolCall(
         name: args.name as string,
         type: args.type as 'personal' | 'enterprise',
         owner: args.owner as string,
-        keyAlgorithm: args.key_algorithm as 'Ed25519' | 'P-256' | undefined,
+        keyAlgorithm: (args.key_algorithm as 'Ed25519' | 'P-256' | undefined) ?? 'P-256',
         scopePolicies: args.scope_policies as Record<string, {
           permissions?: string[];
           exclusions?: string[];

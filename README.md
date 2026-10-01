@@ -93,7 +93,7 @@ Your agent now has 23 trust tools. The typical flow:
 | Tool | Description |
 |------|-------------|
 | `parafe_discover` | Fetch a target agent's agent card to learn its Parafe trust requirements |
-| `parafe_register` | Register a new agent identity (Ed25519 or P-256 key; JWT and SD-JWT VC credentials) |
+| `parafe_register` | Register a new agent identity (P-256 key by default, or Ed25519; JWT and SD-JWT VC credentials) |
 | `parafe_initiate_handshake` | Start mutual authentication with a target agent |
 | `parafe_complete_handshake` | Complete a handshake initiated by another agent |
 | `parafe_escalate_scope` | Request additional scope within an existing session |
@@ -142,7 +142,7 @@ Connect to `http://localhost:3001/mcp` from your MCP client.
 
 ## How It Works
 
-This MCP server wraps the [@getparafe/sdk](https://github.com/getparafe/sdk). Each tool call maps to an SDK method. The SDK handles the cryptography (Ed25519 or P-256 agent keys, challenge signing, a proof of possession on every request made as your agent) and credential encryption internally.
+This MCP server wraps the [@getparafe/sdk](https://github.com/getparafe/sdk). Each tool call maps to an SDK method. The SDK handles the cryptography (P-256 or Ed25519 agent keys, challenge signing, a proof of possession on every request made as your agent) and credential encryption internally.
 
 ```
 MCP Client (Claude, Cursor, etc.)

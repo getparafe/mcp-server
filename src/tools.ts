@@ -61,7 +61,7 @@ Always discover before handshaking. The agent card tells you whether your creden
   },
   {
     name: TOOL_NAMES.REGISTER,
-    description: `Register a new agent identity with the Parafe trust network. This generates a key pair (Ed25519 by default, or P-256 for AP2 interop), sends the public key to the Parafe broker, and receives a signed credential (a JWT, plus the same identity as an SD-JWT VC that binds your key). Call this once to establish your agent's identity — credentials are saved automatically and persist across sessions. Your private key never leaves this server; it signs a proof of possession on every request made as your agent.
+    description: `Register a new agent identity with the Parafe trust network. This generates a key pair (P-256 by default, the key AP2 receipts need; Ed25519 on request), sends the public key to the Parafe broker, and receives a signed credential (a JWT, plus the same identity as an SD-JWT VC that binds your key). Call this once to establish your agent's identity — credentials are saved automatically and persist across sessions. Your private key never leaves this server; it signs a proof of possession on every request made as your agent.
 
 You must register before you can initiate or complete trust handshakes. If you already have credentials loaded, this returns your existing agent info.
 
@@ -85,7 +85,7 @@ Registered without an API key, the agent has no owner (self_registered, unverifi
         key_algorithm: {
           type: 'string',
           enum: ['Ed25519', 'P-256'],
-          description: "Key type. 'Ed25519' (default) or 'P-256' (ES256, the key type AP2 mandates use).",
+          description: "Key type. 'P-256' (default; ES256, the key type AP2 mandates and receipts use) or 'Ed25519'.",
         },
         scope_policies: {
           type: 'object',
@@ -572,7 +572,7 @@ Pass session_id to record the mandate in a session you are in: receipts in that 
     name: TOOL_NAMES.RECORD_AP2_RECEIPT,
     description: `Sign an AP2 Checkout or Payment Receipt as your agent and file it in the session's index, in one call. Use it after you accept or reject a purchase under an AP2 mandate (see parafe_verify_mandate): AP2 says the merchant must return a receipt either way. Returns the receipt JWT (send it back to the shopping agent), its reference, and the broker's acknowledgment, which says whether the reference matches a mandate verified in the session (reference_verified).
 
-Success: a checkout receipt needs order_id; a payment receipt needs payment_id, psp_confirmation_id and network_confirmation_id. Error: pass error (the AP2 code) and error_description (a payment receipt still needs payment_id). AP2 receipts are ES256, so your agent needs a P-256 key (parafe_register with key_algorithm 'P-256'). File before the session is closed.`,
+Success: a checkout receipt needs order_id; a payment receipt needs payment_id, psp_confirmation_id and network_confirmation_id. Error: pass error (the AP2 code) and error_description (a payment receipt still needs payment_id). AP2 receipts are ES256, so your agent needs a P-256 key (parafe_register's default). File before the session is closed.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
