@@ -48,7 +48,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@getparafe/sdk": "^0.7.0",
+    "@getparafe/sdk": "^0.8.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^4.3.6"
   },
