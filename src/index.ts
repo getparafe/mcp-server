@@ -5,16 +5,17 @@
  * consent verification, session management, receipts) as MCP tools.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createRequire } from 'node:module';
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { ParafeClient, ParafeError, ForbiddenError, type ActionErrorCode, type ReceiptKind } from '@getparafe/sdk';
+import { ParafeClient, ParafeError, ForbiddenError, ConflictError, type ActionErrorCode, type ReceiptKind } from '@getparafe/sdk';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization, buildVerifyMandateOptions, buildAp2ReceiptOptions } from './tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from './resources.js';
 import { schemas } from './schemas.js';
 
-// ── Package version (injected at build or read from package.json) ──
+// ── Package version (read from package.json: ../package.json from both src/ and dist/) ──
 
-const VERSION = '0.8.0';
+const VERSION: string = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
 
 // ── Configuration ──
 
@@ -171,28 +172,128 @@ async function ensureDirectoryExists(filePath: string): Promise<void> {
   await mkdir(dir, { recursive: true });
 }
 
+// A credentials file that exists but couldn't be read (wrong passphrase, damaged file).
+const credentialsLoadErrors = new WeakMap<ParafeClient, string>();
+// Clients that loaded or wrote the credentials file: only they may overwrite it. An existing
+// file holds an identity that may still be wanted, so nothing else replaces it (P-47).
+const credentialsFileOwners = new WeakSet<ParafeClient>();
+// parafe_register runs one call at a time per client.
+const registerLocks = new WeakMap<ParafeClient, Promise<void>>();
+
+async function fileExists(path: string): Promise<boolean> {
+  const { access } = await import('node:fs/promises');
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Why this client may not write the credentials file, or null if it may. */
+async function credentialsFileBlocked(client: ParafeClient, config: ServerConfig): Promise<string | null> {
+  if (!config.credentialsPassphrase || credentialsFileOwners.has(client)) return null;
+  if (!(await fileExists(config.credentialsPath))) return null;
+  const loadError = credentialsLoadErrors.get(client);
+  return loadError
+    ? `The credentials file ${config.credentialsPath} exists but couldn't be read (${loadError}). Fix PARAFE_CREDENTIALS_PASSPHRASE and restart, or move the file away to register a new agent.`
+    : `The credentials file ${config.credentialsPath} already exists and wasn't loaded. Restart the server to load it, or move it away to register a new agent.`;
+}
+
 async function tryLoadCredentials(client: ParafeClient, config: ServerConfig): Promise<void> {
   if (!config.credentialsPassphrase) return;
 
+  if (!(await fileExists(config.credentialsPath))) return; // No file yet: that's fine
   try {
-    const { access } = await import('node:fs/promises');
-    await access(config.credentialsPath);
     await client.loadCredentials(config.credentialsPath, config.credentialsPassphrase);
-  } catch {
-    // File doesn't exist yet — that's fine
+    credentialsFileOwners.add(client);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    credentialsLoadErrors.set(client, message);
+    console.error(`Could not read the credentials file ${config.credentialsPath} (${message}). Check PARAFE_CREDENTIALS_PASSPHRASE. The file won't be overwritten.`);
   }
 }
 
 async function trySaveCredentials(client: ParafeClient, config: ServerConfig): Promise<void> {
   if (!config.credentialsPassphrase) return;
+  const blocked = await credentialsFileBlocked(client, config);
+  if (blocked) throw new Error(blocked);
 
   await ensureDirectoryExists(config.credentialsPath);
   await client.saveCredentials(config.credentialsPath, config.credentialsPassphrase);
+  credentialsFileOwners.add(client);
 }
 
 // ── Tool handler ──
 
 type ToolArgs = Record<string, unknown>;
+
+async function registerAgent(args: ToolArgs, client: ParafeClient, config: ServerConfig): Promise<unknown> {
+  // If credentials already loaded, return existing info
+  const status = client.credentialStatus();
+  if (status.loaded) {
+    return {
+      message: 'Credentials already loaded. Using existing agent identity.',
+      agentId: status.agentId,
+      agentName: status.agentName,
+      expiresAt: status.expiresAt,
+      expired: status.expired,
+    };
+  }
+  // Check before registering: an agent whose credentials can't be saved would be orphaned.
+  const blocked = await credentialsFileBlocked(client, config);
+  if (blocked) throw new Error(blocked);
+
+  const result = await client.register({
+    ...(args.name ? { name: args.name as string } : {}),
+    type: args.type as 'personal' | 'enterprise',
+    ...(args.principal_name ? { principalName: args.principal_name as string } : {}),
+    ...(args.acts_for_ref ? { actsFor: { ref: args.acts_for_ref as string } } : {}),
+    keyAlgorithm: (args.key_algorithm as 'Ed25519' | 'P-256' | undefined) ?? 'P-256',
+    scopePolicies: args.scope_policies as Record<string, {
+      permissions?: string[];
+      exclusions?: string[];
+      minimum_authorization_modality?: 'autonomous' | 'attested' | 'verified';
+      minimum_identity_assurance?: 'self_registered' | 'registered' | 'claimed';
+      minimum_verification_tier?: 'unverified' | 'email_verified' | 'domain_verified' | 'org_verified';
+      minimum_initiator_proof?: 'pop' | 'credential';
+      minimum_tenure_days?: number;
+      minimum_session_completion_rate?: number;
+      maximum_denied_requests_30d?: number;
+      minimum_unique_counterparties?: number;
+      minimum_handshake_success_rate?: number;
+      description?: string;
+    }> | undefined,
+  });
+
+  // Auto-save credentials
+  let persistenceWarning: string | undefined;
+  try {
+    await trySaveCredentials(client, config);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Failed to persist credentials: ${msg}`);
+    persistenceWarning = 'Credentials were not saved to disk. Store them manually.';
+  }
+
+  // Return without exposing the private key
+  const response: Record<string, unknown> = {
+    agentId: result.agentId,
+    did: result.did,
+    publicKey: result.publicKey,
+    credentialSdJwt: result.credentialSdJwt,
+    verificationTier: result.verificationTier,
+    identityAssurance: result.identityAssurance,
+    issuedAt: result.issuedAt,
+    expiresAt: result.expiresAt,
+  };
+  // Self-registered: show the person the url and tell them its code.
+  if (result.claimLink) response.claimLink = result.claimLink;
+  if (persistenceWarning) {
+    response.warning = persistenceWarning;
+  }
+  return response;
+}
 
 async function handleToolCall(
   name: string,
@@ -206,67 +307,18 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.REGISTER: {
-      // If credentials already loaded, return existing info
-      const status = client.credentialStatus();
-      if (status.loaded) {
-        return {
-          message: 'Credentials already loaded. Using existing agent identity.',
-          agentId: status.agentId,
-          agentName: status.agentName,
-          expiresAt: status.expiresAt,
-          expired: status.expired,
-        };
-      }
-
-      const result = await client.register({
-        ...(args.name ? { name: args.name as string } : {}),
-        type: args.type as 'personal' | 'enterprise',
-        ...(args.principal_name ? { principalName: args.principal_name as string } : {}),
-        ...(args.acts_for_ref ? { actsFor: { ref: args.acts_for_ref as string } } : {}),
-        keyAlgorithm: (args.key_algorithm as 'Ed25519' | 'P-256' | undefined) ?? 'P-256',
-        scopePolicies: args.scope_policies as Record<string, {
-          permissions?: string[];
-          exclusions?: string[];
-          minimum_authorization_modality?: 'autonomous' | 'attested' | 'verified';
-          minimum_identity_assurance?: 'self_registered' | 'registered' | 'claimed';
-          minimum_verification_tier?: 'unverified' | 'email_verified' | 'domain_verified' | 'org_verified';
-          minimum_initiator_proof?: 'pop' | 'credential';
-          minimum_tenure_days?: number;
-          minimum_session_completion_rate?: number;
-          maximum_denied_requests_30d?: number;
-          minimum_unique_counterparties?: number;
-          minimum_handshake_success_rate?: number;
-          description?: string;
-        }> | undefined,
-      });
-
-      // Auto-save credentials
-      let persistenceWarning: string | undefined;
+      // One registration at a time per client: a second concurrent call (HTTP transport)
+      // waits, then finds the first one's credentials loaded.
+      const previous = registerLocks.get(client) ?? Promise.resolve();
+      let release!: () => void;
+      const mine = new Promise<void>((resolve) => { release = resolve; });
+      registerLocks.set(client, previous.then(() => mine));
+      await previous;
       try {
-        await trySaveCredentials(client, config);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`Failed to persist credentials: ${msg}`);
-        persistenceWarning = 'Credentials were not saved to disk. Store them manually.';
+        return await registerAgent(args, client, config);
+      } finally {
+        release();
       }
-
-      // Return without exposing the private key
-      const response: Record<string, unknown> = {
-        agentId: result.agentId,
-        did: result.did,
-        publicKey: result.publicKey,
-        credentialSdJwt: result.credentialSdJwt,
-        verificationTier: result.verificationTier,
-        identityAssurance: result.identityAssurance,
-        issuedAt: result.issuedAt,
-        expiresAt: result.expiresAt,
-      };
-      // Self-registered: show the person the url and tell them its code.
-      if (result.claimLink) response.claimLink = result.claimLink;
-      if (persistenceWarning) {
-        response.warning = persistenceWarning;
-      }
-      return response;
     }
 
     case TOOL_NAMES.INITIATE_HANDSHAKE: {
@@ -379,7 +431,19 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.RENEW_CREDENTIAL: {
-      return client.renewCredential(args.agent_id as string);
+      const result = await client.renewCredential(args.agent_id as string);
+      // The broker revokes the old credential on renewal: save the new one (P-46).
+      const loaded = client.credentialStatus();
+      if (result.renewed && loaded.loaded && loaded.agentId === args.agent_id) {
+        try {
+          await trySaveCredentials(client, config);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`Failed to persist renewed credentials: ${msg}`);
+          return { ...result, warning: 'The renewed credential was not saved to disk, and the old one is revoked. Store it manually before restarting.' };
+        }
+      }
+      return result;
     }
 
     case TOOL_NAMES.CREATE_CLAIM_LINK: {
@@ -445,21 +509,18 @@ async function handleResourceRead(
     return JSON.stringify(await client.getJwks(), null, 2);
   }
 
-  // parafe://session/{sessionId}
+  // parafe://session/{sessionId}: what a participant can read (P-45: this used to call an admin route)
   const sessionMatch = uri.match(/^parafe:\/\/session\/(.+)$/);
   if (sessionMatch) {
-    const sessionId = sessionMatch[1];
-    // Fetch session details via broker API
-    const res = await fetch(`${config.brokerUrl}/admin/sessions/${sessionId}`, {
-      headers: {
-        'User-Agent': `@getparafe/mcp-server/${VERSION}`,
-        ...(config.apiKey ? { 'x-api-key': config.apiKey } : {}),
-      },
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch session ${sessionId}: ${res.status}`);
+    const sessionId = decodeURIComponent(sessionMatch[1]);
+    const actionReceipts = await client.getActionReceipts(sessionId);
+    let receipt: unknown = null;
+    try {
+      receipt = await client.getReceipt(sessionId);
+    } catch (err) {
+      if (!(err instanceof ConflictError)) throw err; // 409: not closed yet
     }
-    return JSON.stringify(await res.json(), null, 2);
+    return JSON.stringify({ sessionId, closed: receipt !== null, receipt, actionReceipts }, null, 2);
   }
 
   throw new Error(`Unknown resource: ${uri}`);
@@ -507,14 +568,24 @@ function desc(name: string): string {
 }
 
 export function createServer(config: ServerConfig) {
-  const server = new McpServer({
-    name: '@getparafe/mcp-server',
-    version: VERSION,
-  });
-
   const client = new ParafeClient({
     brokerUrl: config.brokerUrl,
     apiKey: config.apiKey,
+  });
+
+  return {
+    server: buildServer(client, config),
+    client,
+    /** A fresh McpServer on the same client (the HTTP transport needs one per request). */
+    newServer: () => buildServer(client, config),
+    tryLoadCredentials: () => tryLoadCredentials(client, config),
+  };
+}
+
+function buildServer(client: ParafeClient, config: ServerConfig): McpServer {
+  const server = new McpServer({
+    name: '@getparafe/mcp-server',
+    version: VERSION,
   });
 
   // Register tools with Zod schemas
@@ -572,7 +643,7 @@ export function createServer(config: ServerConfig) {
   for (const tmpl of RESOURCE_TEMPLATES) {
     server.resource(
       tmpl.name,
-      tmpl.uriTemplate,
+      new ResourceTemplate(tmpl.uriTemplate, { list: undefined }),
       { description: tmpl.description, mimeType: tmpl.mimeType },
       async (uri: URL) => {
         const fullUri = uri.toString();
@@ -592,5 +663,5 @@ export function createServer(config: ServerConfig) {
     );
   }
 
-  return { server, client, tryLoadCredentials: () => tryLoadCredentials(client, config) };
+  return server;
 }

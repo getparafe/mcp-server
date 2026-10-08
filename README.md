@@ -91,7 +91,7 @@ Your agent now has 24 trust tools. The typical flow:
 | `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no operator or principal; its public name is its agent ID) and returns a claim link: the agent shows it to the person it acts for and tells them its code; they open the link, check the page shows the same code, sign in and approve (`parafe_create_claim_link` makes a new one; `parafe_get_claim_status` waits for the approval) |
 | `PARAFE_CREDENTIALS_PATH` | No | `~/.parafe/credentials.enc` | Encrypted credential file path |
 | `PARAFE_CREDENTIALS_PASSPHRASE` | No | — | Passphrase for credential encryption. If not set, credentials are held in memory only. |
-| `PARAFE_MCP_AUTH_TOKEN` | HTTP transport | — | Bearer token required on `/mcp`. Without it the HTTP endpoint has no authentication and listens on every interface: anyone who reaches the port acts as your agent. Always set it. |
+| `PARAFE_MCP_AUTH_TOKEN` | For `--transport=http` | — | Bearer token MCP clients must send on `/mcp`. The HTTP transport won't start without it (0.13.0 started without it and served `/mcp` with no authentication). |
 
 ## Available Tools
 
@@ -127,7 +127,7 @@ Your agent now has 24 trust tools. The typical flow:
 | URI | Description |
 |-----|-------------|
 | `parafe://agent` | Whether credentials are loaded: agent ID and name, expiry |
-| `parafe://session/{sessionId}` | Not working in 0.13.0: it calls an admin-only broker route and fails (see Known issues) |
+| `parafe://session/{sessionId}` | A session the loaded agent takes part in: its action-receipt index and, once closed, its signed receipt |
 | `parafe://public-key` | Broker's signing keys (JWKS) |
 
 ## Transports
@@ -144,7 +144,7 @@ npx @getparafe/mcp-server
 npx @getparafe/mcp-server --transport=http --port=3001
 ```
 
-Connect to `http://localhost:3001/mcp` from your MCP client, sending `Authorization: Bearer <PARAFE_MCP_AUTH_TOKEN>`. In 0.13.0 this transport answers only the first request of each process (see Known issues): use stdio.
+Connect to `http://localhost:3001/mcp` from your MCP client, sending `Authorization: Bearer <PARAFE_MCP_AUTH_TOKEN>`. It listens on every interface; each request is served statelessly, all as the one loaded agent.
 
 ## How It Works
 
@@ -160,14 +160,12 @@ MCP Client (Claude, Cursor, etc.)
 Parafe Broker API
 ```
 
-## Known issues (0.13.0)
+## Known issues in 0.13.0 (fixed on `main`, in the next release)
 
-Fixes are planned for the next release.
-
-- **Streamable HTTP** answers the first request and fails every later one (one stateless transport is reused). Use stdio.
-- **`parafe_renew_credential`** doesn't save the renewed credential, and the broker revokes the old one. After a restart the server loads the revoked credential. Until the fix, a keyless agent that renewed and then restarted must delete (or move) its credentials file and register again.
+- **Streamable HTTP** answers the first request and fails every later one, and serves `/mcp` with no authentication unless `PARAFE_MCP_AUTH_TOKEN` is set. Use stdio with 0.13.0.
+- **`parafe_renew_credential`** doesn't save the renewed credential, and the broker revokes the old one, so after a restart the server loads the revoked credential. A keyless agent that renewed and then restarted must delete (or move) its credentials file and register again.
 - **`parafe://session/{sessionId}`** always fails.
-- A wrong `PARAFE_CREDENTIALS_PASSPHRASE` is ignored silently, and the next `parafe_register` overwrites the saved identity.
+- A wrong `PARAFE_CREDENTIALS_PASSPHRASE` is ignored silently, and the next `parafe_register` overwrites the saved identity. Since the fix, the server logs the error and refuses to register until the passphrase is fixed or the file is moved.
 
 ## Development
 

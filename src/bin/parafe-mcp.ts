@@ -31,11 +31,17 @@ async function main() {
     console.error('  PARAFE_API_KEY                  Developer API key from the Parafe portal. Without one, the agent self-registers and gets a claim link for the person it acts for.');
     console.error('  PARAFE_CREDENTIALS_PATH         Path to encrypted credential file (default: ~/.parafe/credentials.enc)');
     console.error('  PARAFE_CREDENTIALS_PASSPHRASE   Passphrase for credential encryption');
-    console.error('  PARAFE_MCP_AUTH_TOKEN            Bearer token for HTTP transport authentication');
+    console.error('  PARAFE_MCP_AUTH_TOKEN            Bearer token MCP clients must send (required for --transport=http)');
     process.exit(1);
   }
 
-  const { server, tryLoadCredentials } = createServer(config);
+  const { server, newServer, tryLoadCredentials } = createServer(config);
+
+  if (transport === 'http' && !process.env.PARAFE_MCP_AUTH_TOKEN) {
+    // Without a token, anyone who reaches the port would act as the loaded agent (S-67).
+    console.error('The HTTP transport needs PARAFE_MCP_AUTH_TOKEN: a bearer token MCP clients must send (Authorization: Bearer <token>).');
+    process.exit(1);
+  }
 
   // Auto-load credentials if available
   await tryLoadCredentials();
@@ -47,43 +53,15 @@ async function main() {
     const portArg = args.find((a) => a.startsWith('--port='));
     const port = portArg ? parseInt(portArg.split('=')[1], 10) : 3001;
 
-    // Dynamically import the Streamable HTTP transport
-    const { StreamableHTTPServerTransport } = await import(
-      '@modelcontextprotocol/sdk/server/streamableHttp.js'
-    );
-
+    const { createHttpRequestHandler } = await import('../http.js');
     const { createServer: createHttpServer } = await import('node:http');
 
-    const httpTransport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    });
-
-    await server.connect(httpTransport);
-
-    const bearerToken = process.env.PARAFE_MCP_AUTH_TOKEN;
-
-    const httpServer = createHttpServer(async (req, res) => {
-      if (req.url === '/mcp' || req.url?.startsWith('/mcp?')) {
-        if (bearerToken) {
-          const auth = req.headers.authorization;
-          if (!auth || auth !== `Bearer ${bearerToken}`) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Unauthorized' }));
-            return;
-          }
-        }
-        await httpTransport.handleRequest(req, res);
-      } else if (req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', server: '@getparafe/mcp-server' }));
-      } else {
-        res.writeHead(404);
-        res.end('Not found');
-      }
-    });
+    // One McpServer and transport per request (stateless), sharing the loaded agent (P-44).
+    const handler = createHttpRequestHandler({ newServer, bearerToken: process.env.PARAFE_MCP_AUTH_TOKEN as string });
+    const httpServer = createHttpServer((req, res) => { void handler(req, res); });
 
     httpServer.listen(port, () => {
-      console.error(`Parafe MCP server listening on http://localhost:${port}/mcp`);
+      console.error(`Parafe MCP server listening on port ${port} (all interfaces), path /mcp`);
     });
   } else {
     console.error(`Unknown transport: ${transport}. Use 'stdio' or 'http'.`);
