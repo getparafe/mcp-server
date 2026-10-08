@@ -34,7 +34,7 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
 }
 ```
 
-**Claude Code** (`.claude/settings.json`):
+**Claude Code** (`.mcp.json` in your project root, or `claude mcp add parafe-trust -e PARAFE_BROKER_URL=https://api.parafe.ai -e PARAFE_CREDENTIALS_PASSPHRASE=your-passphrase -- npx @getparafe/mcp-server`):
 
 ```json
 {
@@ -44,7 +44,8 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
       "args": ["@getparafe/mcp-server"],
       "env": {
         "PARAFE_BROKER_URL": "https://api.parafe.ai",
-        "PARAFE_API_KEY": "prf_key_live_..."
+        "PARAFE_API_KEY": "prf_key_live_...",
+        "PARAFE_CREDENTIALS_PASSPHRASE": "your-passphrase"
       }
     }
   }
@@ -61,19 +62,22 @@ Sign up at [platform.parafe.ai](https://platform.parafe.ai) and create an API ke
       "args": ["@getparafe/mcp-server"],
       "env": {
         "PARAFE_BROKER_URL": "https://api.parafe.ai",
-        "PARAFE_API_KEY": "prf_key_live_..."
+        "PARAFE_API_KEY": "prf_key_live_...",
+        "PARAFE_CREDENTIALS_PASSPHRASE": "your-passphrase"
       }
     }
   }
 }
 ```
 
+Without `PARAFE_CREDENTIALS_PASSPHRASE` the agent's identity lives in memory only, and every restart registers a new agent.
+
 ### 3. Use It
 
-Your agent now has 23 trust tools. The typical flow:
+Your agent now has 24 trust tools. The typical flow:
 
 1. **Discover** — `parafe_discover` fetches the target agent's agent card to learn its trust requirements
-2. **Register** — `parafe_register` creates your agent's cryptographic identity (once, persisted)
+2. **Register** — `parafe_register` creates your agent's cryptographic identity (once; saved to the credentials file when `PARAFE_CREDENTIALS_PASSPHRASE` is set)
 3. **Handshake** — `parafe_initiate_handshake` starts mutual authentication; the target calls `parafe_complete_handshake`
 4. **Interact** — `parafe_verify_consent` checks each request; after each action you perform or refuse, `parafe_record_action_receipt` signs an action receipt and files it in the session's index (`parafe_file_action_receipt` files the other agent's copy)
    - **Selling under an AP2 mandate?** `parafe_verify_mandate` has the broker check the mandate the shopping agent presented; answer with `parafe_record_ap2_receipt` (an AP2 Checkout or Payment Receipt, signed with your P-256 key and filed in the session's index)
@@ -87,6 +91,7 @@ Your agent now has 23 trust tools. The typical flow:
 | `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no operator or principal; its public name is its agent ID) and returns a claim link: the agent shows it to the person it acts for and tells them its code; they open the link, check the page shows the same code, sign in and approve (`parafe_create_claim_link` makes a new one; `parafe_get_claim_status` waits for the approval) |
 | `PARAFE_CREDENTIALS_PATH` | No | `~/.parafe/credentials.enc` | Encrypted credential file path |
 | `PARAFE_CREDENTIALS_PASSPHRASE` | No | — | Passphrase for credential encryption. If not set, credentials are held in memory only. |
+| `PARAFE_MCP_AUTH_TOKEN` | HTTP transport | — | Bearer token required on `/mcp`. Without it the HTTP endpoint has no authentication and listens on every interface: anyone who reaches the port acts as your agent. Always set it. |
 
 ## Available Tools
 
@@ -101,18 +106,18 @@ Your agent now has 23 trust tools. The typical flow:
 | `parafe_record_action_receipt` | Sign an action receipt for what you did or refused, and file it in the session's index |
 | `parafe_file_action_receipt` | File the other agent's action receipt (or an AP2 receipt) in the session's index |
 | `parafe_get_action_receipts` | List the session's index (either participant) |
-| `parafe_create_claim_link` | A claim link for an agent registered without an API key: the person it acts for opens it, checks the code and approves, and the agent becomes theirs |
+| `parafe_create_claim_link` | A claim link for an agent registered without an API key (or by a platform for one of its users): the person it acts for opens it, checks the code and approves while signed in to Parafé, and the agent acts for them |
 | `parafe_get_claim_status` | Whether the person has approved the claim link yet. Waits for the approval (up to `wait_seconds`, default 25) and answers the moment they approve; call it again while `claimed` is false, for up to 30 minutes. Then `parafe_renew_credential`. Needs `@getparafe/sdk` 0.12 and a broker from 2026-10-08 |
 | `parafe_close_session` | Close a session and generate a signed receipt |
 | `parafe_get_session_receipt` | Fetch a closed session's receipt (either participant) |
-| `parafe_verify_receipt` | Verify a receipt's signature |
+| `parafe_verify_receipt` | Ask the broker to check a receipt's signature (for an independent check, verify the JWS against the broker's JWKS, e.g. with `@getparafe/verify`) |
 | `parafe_revoke_agent` | Revoke an agent identity |
-| `parafe_renew_credential` | Renew a credential (tier changed, or within 7 days of expiry) |
+| `parafe_renew_credential` | Renew a credential: after a claim or a tier change, or when expired or within 7 days of expiry; otherwise `renewed: false` |
 | `parafe_update_scope_policies` | Update an agent's accepted scope policies |
 | `parafe_get_public_key` | Get the broker's signing keys (JWKS) |
 | `parafe_verify_consent_locally` | Verify a consent token offline against the broker's keys |
 | `parafe_create_presentation_proof` | Proof to send with a consent token you present (tokens are bound to your key) |
-| `parafe_get_agent_metrics` | Get reputation metrics for an agent (trust signals from interaction history) |
+| `parafe_get_agent_metrics` | Get reputation metrics for an agent (trust signals from interaction history). With an API key: your org's agents and agents with no org only (403 for another org's agent) |
 | `parafe_verify_mandate` | Have the broker verify an AP2 mandate presented to you (merchant or payment processor): valid, the AP2 error code if not, the agent holding it, the redemption |
 | `parafe_record_ap2_receipt` | Sign an AP2 Checkout or Payment Receipt and file it in the session's index (needs a P-256 agent key) |
 | `parafe_sign_ap2_receipt` | Sign an AP2 Checkout or Payment Receipt without filing it (a purchase outside a Parafé session) |
@@ -121,8 +126,8 @@ Your agent now has 23 trust tools. The typical flow:
 
 | URI | Description |
 |-----|-------------|
-| `parafe://agent` | Current agent identity and credential status |
-| `parafe://session/{sessionId}` | Session details, participants, consent tokens |
+| `parafe://agent` | Whether credentials are loaded: agent ID and name, expiry |
+| `parafe://session/{sessionId}` | Not working in 0.13.0: it calls an admin-only broker route and fails (see Known issues) |
 | `parafe://public-key` | Broker's signing keys (JWKS) |
 
 ## Transports
@@ -139,11 +144,11 @@ npx @getparafe/mcp-server
 npx @getparafe/mcp-server --transport=http --port=3001
 ```
 
-Connect to `http://localhost:3001/mcp` from your MCP client.
+Connect to `http://localhost:3001/mcp` from your MCP client, sending `Authorization: Bearer <PARAFE_MCP_AUTH_TOKEN>`. In 0.13.0 this transport answers only the first request of each process (see Known issues): use stdio.
 
 ## How It Works
 
-This MCP server wraps the [@getparafe/sdk](https://github.com/getparafe/sdk). Each tool call maps to an SDK method. The SDK handles the cryptography (P-256 or Ed25519 agent keys, challenge signing, a proof of possession on every request made as your agent) and credential encryption internally.
+This MCP server wraps the [@getparafe/sdk](https://github.com/getparafe/sdk). Each tool call maps to an SDK method, except `parafe_discover`, which fetches the target's agent card itself. The SDK handles the cryptography (P-256 or Ed25519 agent keys, challenge signing, a proof of possession on every request made as your agent) and credential encryption internally.
 
 ```
 MCP Client (Claude, Cursor, etc.)
@@ -155,12 +160,22 @@ MCP Client (Claude, Cursor, etc.)
 Parafe Broker API
 ```
 
+## Known issues (0.13.0)
+
+Fixes are planned for the next release.
+
+- **Streamable HTTP** answers the first request and fails every later one (one stateless transport is reused). Use stdio.
+- **`parafe_renew_credential`** doesn't save the renewed credential, and the broker revokes the old one. After a restart the server loads the revoked credential. Until the fix, a keyless agent that renewed and then restarted must delete (or move) its credentials file and register again.
+- **`parafe://session/{sessionId}`** always fails.
+- A wrong `PARAFE_CREDENTIALS_PASSPHRASE` is ignored silently, and the next `parafe_register` overwrites the saved identity.
+
 ## Development
 
 ```bash
 npm install
 npm run build
-npm test
+npm run test:unit                                   # no network
+PARAFE_TEST_BROKER_URL=https://… npm run test:integration   # signs up a test org on that broker
 ```
 
 ## License
