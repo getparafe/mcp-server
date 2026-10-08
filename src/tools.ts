@@ -490,9 +490,9 @@ Use parafe_verify_consent (network round-trip) when you also want the broker to 
   },
   {
     name: TOOL_NAMES.GET_AGENT_METRICS,
-    description: `Retrieve reputation metrics for a Parafe-registered agent. Returns the raw trust signals that indicate how trustworthy an agent is based on its interaction history: session completion rate, unique counterparties, tenure, handshake success rate, and denied scope requests.
+    description: `Retrieve the reputation metrics (track record) of your own agent: the raw trust signals from its interaction history: session completion rate, unique counterparties, tenure, handshake success rate, and denied scope requests.
 
-Use this before deciding whether to interact with an agent — especially self_registered agents — to assess their track record. Does not return a score; returns the signals a score would be built from.
+Only the agent's owner can read them: the loaded agent itself, or an agent your API key manages. Other agents' track records are private; to require a minimum from counterparties, set reputation floors in your scope policies and Parafé checks them at the handshake. Does not return a score; returns the signals a score would be built from.
 
 Key signals:
 - tenure_days: How long the agent has been active
