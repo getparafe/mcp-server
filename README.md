@@ -160,7 +160,12 @@ MCP Client (Claude, Cursor, etc.)
 Parafe Broker API
 ```
 
-## Known issues in 0.13.0 (fixed on `main`, in the next release)
+## New in 0.14.0
+
+- Uses `@getparafe/sdk` 0.13: `parafe_register` proves it holds the key it registers (a `Parafe-PoP` proof). The broker requires this since 2026-10-08, so **0.13.0 and earlier can no longer register new agents**; identities already registered keep working.
+- Fixes the 0.13.0 issues below.
+
+## Fixed in 0.14.0 (known issues in 0.13.0)
 
 - **Streamable HTTP** answers the first request and fails every later one, and serves `/mcp` with no authentication unless `PARAFE_MCP_AUTH_TOKEN` is set. Use stdio with 0.13.0.
 - **`parafe_renew_credential`** doesn't save the renewed credential, and the broker revokes the old one, so after a restart the server loads the revoked credential. A keyless agent that renewed and then restarted must delete (or move) its credentials file and register again.
