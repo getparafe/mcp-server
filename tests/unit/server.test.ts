@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TOOL_DEFINITIONS, TOOL_NAMES, buildAuthorization, buildVerifyMandateOptions, buildAp2ReceiptOptions } from '../../src/tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_TEMPLATES } from '../../src/resources.js';
-import { loadConfig, createServer, discoverAgentCard, wrapHandler, PARAFE_EXTENSION_URIS, type ServerConfig } from '../../src/index.js';
+import { loadConfig, createServer, discoverAgentCard, wrapHandler, checkConsentAudience, PARAFE_EXTENSION_URIS, type ServerConfig } from '../../src/index.js';
 import { ForbiddenError, type ParafeClient } from '@getparafe/sdk';
 
 // ── Tool definition tests ──
@@ -601,5 +601,20 @@ describe('AP2 argument mapping', () => {
     });
     expect(buildAp2ReceiptOptions({ kind: 'checkout', references: { sdHash: 's', closedJwt: 'c' }, order_id: 'o' }))
       .toEqual({ kind: 'checkout', references: { sdHash: 's', closedJwt: 'c' }, orderId: 'o' });
+  });
+});
+
+describe('consent token audience (S-69)', () => {
+  const jwt = (claims: Record<string, unknown>) => `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.sig`;
+  const client = (agentId?: string) => ({ credentialStatus: () => (agentId ? { loaded: true, agentId } : { loaded: false }) }) as never;
+
+  it('accepts a token for the loaded agent, or the loaded agent\'s own token', () => {
+    expect(() => checkConsentAudience(client('prf_agent_shop'), jwt({ sub: 'prf_agent_cust', target_agent_id: 'prf_agent_shop' }))).not.toThrow();
+    expect(() => checkConsentAudience(client('prf_agent_cust'), jwt({ sub: 'prf_agent_cust', target_agent_id: 'prf_agent_shop' }))).not.toThrow();
+    expect(() => checkConsentAudience(client(), jwt({ sub: 'a', target_agent_id: 'b' }))).not.toThrow();
+  });
+
+  it('refuses a token issued for another agent', () => {
+    expect(() => checkConsentAudience(client('prf_agent_other'), jwt({ sub: 'prf_agent_cust', target_agent_id: 'prf_agent_shop' }))).toThrow(/wrong_audience/);
   });
 });

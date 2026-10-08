@@ -34,6 +34,7 @@ Integration tests are self-bootstrapping — they create their own org + API key
 ## Key Design Decisions
 
 - **Thin wrapper** — all broker interaction goes through `@getparafe/sdk`. `parafe_discover` fetches agent cards from third-party domains, not the broker. `createServer()` returns `newServer()` for a fresh McpServer on the same client (the HTTP transport needs one per request: the MCP SDK refuses to reuse a stateless transport). Resource templates must be `ResourceTemplate` objects; a string registers one literal URI.
+- **Consent audience (S-69)** — `checkConsentAudience()` (`src/index.ts`) refuses a consent token issued for another agent than the loaded one before `parafe_verify_consent` and `parafe_verify_consent_locally` call the SDK, so the check holds with SDK 0.13 too (SDK 0.14 checks as well).
 - **Zod schemas** — MCP SDK requires Zod for parameter validation. Schemas in `src/schemas.ts`.
 - **Tool descriptions** — written so an LLM knows when/how to use each tool without external docs. These are in `src/tools.ts`.
 - **Credential lifecycle** — auto-loads on startup if passphrase is set, auto-saves after registration and after the loaded agent's credential is renewed (the broker revokes the old one). A file that exists but can't be read is logged and never overwritten: `parafe_register` refuses until it's fixed or moved.

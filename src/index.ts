@@ -214,6 +214,24 @@ async function tryLoadCredentials(client: ParafeClient, config: ServerConfig): P
   }
 }
 
+/**
+ * S-69: a consent token must be for the loaded agent, unless the loaded agent is
+ * its initiator (checking its own token). Checked here as well as in the SDK, so
+ * it holds with any SDK version this server accepts.
+ */
+export function checkConsentAudience(client: ParafeClient, consentToken: string): void {
+  const status = client.credentialStatus();
+  if (!status.loaded) return;
+  let claims: { sub?: unknown; target_agent_id?: unknown };
+  try {
+    claims = JSON.parse(Buffer.from(consentToken.split('.')[1] ?? '', 'base64url').toString('utf8'));
+  } catch {
+    return; // not a JWT: the verification itself refuses it
+  }
+  if (claims.sub === status.agentId || claims.target_agent_id === status.agentId) return;
+  throw new Error(`wrong_audience: this consent token was issued for ${String(claims.target_agent_id)}, not the loaded agent ${status.agentId}. Don't act on it.`);
+}
+
 async function trySaveCredentials(client: ParafeClient, config: ServerConfig): Promise<void> {
   if (!config.credentialsPassphrase) return;
   const blocked = await credentialsFileBlocked(client, config);
@@ -369,6 +387,7 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.VERIFY_CONSENT: {
+      checkConsentAudience(client, args.consent_token as string);
       return client.verifyConsent({
         consentToken: args.consent_token as string,
         action: args.action as string,
@@ -467,6 +486,7 @@ async function handleToolCall(
     }
 
     case TOOL_NAMES.VERIFY_CONSENT_LOCALLY: {
+      checkConsentAudience(client, args.consent_token as string);
       return client.verifyConsentLocally(
         args.consent_token as string,
         (args.broker_public_key as string | undefined) || undefined,

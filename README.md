@@ -162,10 +162,8 @@ Parafe Broker API
 
 ## New in 0.15.0
 
-With `@getparafe/sdk` 0.14 (installed with it once that version is on npm; 0.13 still works):
-
 - `parafe_verify_consent` and `parafe_verify_consent_locally` refuse a consent token issued for a different agent than the loaded one (`wrong_audience`), so a token from another session can't be replayed at this agent. A refusal names its cause (`token_expired`, `token_invalid`, `session_inactive`, ...).
-- An agent whose credential expired can renew it with `parafe_renew_credential` (broker from 2026-10-08).
+- An agent whose credential expired less than a year ago can renew it with `parafe_renew_credential` (broker from 2026-10-08).
 
 ## New in 0.14.0
 
