@@ -248,7 +248,7 @@ For example, if a flight-rebooking session needs to also process a payment, you 
     name: TOOL_NAMES.VERIFY_CONSENT,
     description: `Check whether a specific action is permitted by a consent token before performing it. Call this before taking any scoped action to ensure you're operating within the agreed boundaries.
 
-Returns whether the action is permitted, and if not, why (e.g., action is in the exclusion list, token expired, scope mismatch, an agent was revoked). Consent tokens are bound to the initiator's key: if the initiator sent a presentation proof with the token, pass it as presentation_proof and the broker checks it (a stolen token without the initiator's key fails).`,
+Returns whether the action is permitted, and if not, why (e.g., action is in the exclusion list, token expired, scope mismatch, an agent was revoked). A token issued for a different agent than the one loaded here is refused (wrong_audience): never act on it. Consent tokens are bound to the initiator's key: if the initiator sent a presentation proof with the token, pass it as presentation_proof and the broker checks it (a stolen token without the initiator's key fails).`,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -470,7 +470,7 @@ For example, you can require that any agent requesting 'payment-processing' scop
     name: TOOL_NAMES.VERIFY_CONSENT_LOCALLY,
     description: `Verify a consent token locally against the broker's published keys — no broker round-trip per token (the keys are fetched once and cached). Use this when you need to validate a consent token offline or in a latency-sensitive path.
 
-Returns the token's scope, permissions, exclusions, session, initiator, audience, the key it's bound to, and how the initiator proved itself, or an error if the signature is invalid. Expired tokens return expired: true.
+Returns the token's scope, permissions, exclusions, session, initiator, target, audience, the key it's bound to, and how the initiator proved itself, or an error if the signature is invalid or the token was issued for a different agent than the one loaded here (wrong_audience). Expired tokens return expired: true.
 
 Use parafe_verify_consent (network round-trip) when you also want the broker to check the action against scope policy. Use this tool when you only need signature and expiry validation.`,
     inputSchema: {
