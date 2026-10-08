@@ -15,8 +15,8 @@ import { ForbiddenError, type ParafeClient } from '@getparafe/sdk';
 // ── Tool definition tests ──
 
 describe('Tool definitions', () => {
-  it('should define exactly 23 tools', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(23);
+  it('should define exactly 24 tools', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(24);
   });
 
   it('adds the AP2 tools (0.8.0)', () => {
@@ -333,6 +333,31 @@ describe('claim links in tool results', () => {
     const out = parse(await wrapHandler(TOOL_NAMES.REGISTER, client, config)({ type: 'personal' }));
     expect(out.claimLink).toEqual(LINK);
     expect(out).not.toHaveProperty('privateKey');
+  });
+
+  it('parafe_get_claim_status asks the broker to wait (25 s by default) and returns the status', async () => {
+    const seen: unknown[] = [];
+    const client = {
+      getClaimStatus: async (opts: unknown) => { seen.push(opts); return { claimed: true, credentialCurrent: false, identityAssurance: 'claimed' }; },
+    } as unknown as ParafeClient;
+    const out = parse(await wrapHandler(TOOL_NAMES.GET_CLAIM_STATUS, client, config)({}));
+    expect(seen).toEqual([{ waitSeconds: 25 }]);
+    expect(out).toMatchObject({ claimed: true, credentialCurrent: false });
+    await wrapHandler(TOOL_NAMES.GET_CLAIM_STATUS, client, config)({ wait_seconds: 0 });
+    expect(seen[1]).toEqual({ waitSeconds: 0 });
+  });
+
+  it('parafe_get_claim_status: wait_seconds is 0 to 50 (MCP clients time out long calls), and the description says how to use it', () => {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.GET_CLAIM_STATUS);
+    expect(tool?.inputSchema.required).toHaveLength(0);
+    const ws = schemas.get_claim_status.wait_seconds;
+    expect(ws.safeParse(50).success).toBe(true);
+    expect(ws.safeParse(51).success).toBe(false);
+    expect(ws.safeParse(1.5).success).toBe(false);
+    expect(tool?.description).toMatch(/again/);
+    expect(tool?.description).toContain('parafe_renew_credential');
+    const link = TOOL_DEFINITIONS.find((t) => t.name === TOOL_NAMES.CREATE_CLAIM_LINK)?.description ?? '';
+    expect(link).toContain('parafe_get_claim_status');
   });
 
   it('a refused handshake returns the claim link and hint', async () => {

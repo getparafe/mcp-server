@@ -145,6 +145,10 @@ export const schemas = {
 
   create_claim_link: {},
 
+  get_claim_status: {
+    wait_seconds: z.number().int().min(0).max(50).optional().describe('Seconds the broker waits for the approval before answering (0 to 50, default 25).'),
+  },
+
   verify_consent_locally: {
     consent_token: z.string().describe('JWT consent token to verify.'),
     broker_public_key: z.string().optional().describe("Optional, legacy: the broker's Ed25519 key in base64, for tokens issued before 2026-09-30. Omit it: the broker's JWKS is fetched and cached."),

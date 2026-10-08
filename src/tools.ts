@@ -28,6 +28,7 @@ export const TOOL_NAMES = {
   GET_SESSION_RECEIPT: 'parafe_get_session_receipt',
   CREATE_PRESENTATION_PROOF: 'parafe_create_presentation_proof',
   CREATE_CLAIM_LINK: 'parafe_create_claim_link',
+  GET_CLAIM_STATUS: 'parafe_get_claim_status',
   VERIFY_MANDATE: 'parafe_verify_mandate',
   SIGN_AP2_RECEIPT: 'parafe_sign_ap2_receipt',
   RECORD_AP2_RECEIPT: 'parafe_record_ap2_receipt',
@@ -393,11 +394,24 @@ Credentials expire after 30 days. Renew in the last week to keep trust capabilit
     name: TOOL_NAMES.CREATE_CLAIM_LINK,
     description: `Get a claim link for this agent, when no person or org has claimed it yet (it registered without an API key, or a platform registered it for one of its users). Show the person you act for the url and tell them its code (e.g. "The page will show the code 7KQ2-M9XD-4H"): they open it, check the page shows the same code, sign in to Parafé (or create an account) and approve, and you become their agent (identity assurance 'claimed', their verification tier). Services that refuse self-registered or unverified agents then accept you. No secret passes through you: the link only works for a signed-in person who approves it.
 
-The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed once a person or org has claimed you.`,
+The link is single use and lasts 30 minutes; a new one replaces the old. A handshake refused for identity or tier (identity_insufficient, tier_insufficient) also returns a claim link. To learn when they approve, call parafe_get_claim_status (it waits for the approval). After approval, call parafe_renew_credential so your credential shows it. Fails with already_claimed once a person or org has claimed you.`,
     inputSchema: {
       type: 'object' as const,
       properties: {},
       required: [],
+    },
+  },
+  {
+    name: TOOL_NAMES.GET_CLAIM_STATUS,
+    description: `Whether the person you act for has approved your claim link yet. The broker holds the call until they approve, or until wait_seconds pass (default 25), so call it right after showing the link, and again each time it returns claimed: false, for up to 30 minutes (the link's life; then make a new one with parafe_create_claim_link). Also call it once when the person says they approved. Don't call it in a fast loop with wait_seconds 0.
+
+Returns claimed, identityAssurance, verificationTier, principalTier and credentialCurrent. Once claimed (credentialCurrent is false), call parafe_renew_credential so your credential shows it; services already accept the claim.`,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        wait_seconds: { type: 'number', description: 'Seconds the broker waits for the approval before answering (0 to 50, default 25).' },
+      },
+      required: [] as string[],
     },
   },
   {

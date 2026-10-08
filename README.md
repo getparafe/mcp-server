@@ -84,7 +84,7 @@ Your agent now has 23 trust tools. The typical flow:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PARAFE_BROKER_URL` | Yes | — | Parafe broker API URL |
-| `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no operator or principal; its public name is its agent ID) and returns a claim link: the agent shows it to the person it acts for and tells them its code; they open the link, check the page shows the same code, sign in and approve (`parafe_create_claim_link` makes a new one) |
+| `PARAFE_API_KEY` | No | — | API key from the developer portal. Without one, `parafe_register` self-registers the agent (no operator or principal; its public name is its agent ID) and returns a claim link: the agent shows it to the person it acts for and tells them its code; they open the link, check the page shows the same code, sign in and approve (`parafe_create_claim_link` makes a new one; `parafe_get_claim_status` waits for the approval) |
 | `PARAFE_CREDENTIALS_PATH` | No | `~/.parafe/credentials.enc` | Encrypted credential file path |
 | `PARAFE_CREDENTIALS_PASSPHRASE` | No | — | Passphrase for credential encryption. If not set, credentials are held in memory only. |
 
@@ -102,6 +102,7 @@ Your agent now has 23 trust tools. The typical flow:
 | `parafe_file_action_receipt` | File the other agent's action receipt (or an AP2 receipt) in the session's index |
 | `parafe_get_action_receipts` | List the session's index (either participant) |
 | `parafe_create_claim_link` | A claim link for an agent registered without an API key: the person it acts for opens it, checks the code and approves, and the agent becomes theirs |
+| `parafe_get_claim_status` | Whether the person has approved the claim link yet. Waits for the approval (up to `wait_seconds`, default 25) and answers the moment they approve; call it again while `claimed` is false, for up to 30 minutes. Then `parafe_renew_credential`. Needs `@getparafe/sdk` 0.12 and a broker from 2026-10-08 |
 | `parafe_close_session` | Close a session and generate a signed receipt |
 | `parafe_get_session_receipt` | Fetch a closed session's receipt (either participant) |
 | `parafe_verify_receipt` | Verify a receipt's signature |

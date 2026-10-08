@@ -386,6 +386,11 @@ async function handleToolCall(
       return client.createClaimLink();
     }
 
+    case TOOL_NAMES.GET_CLAIM_STATUS: {
+      // One wait per call: MCP clients time out long tool calls, so the agent calls again.
+      return client.getClaimStatus({ waitSeconds: (args.wait_seconds as number | undefined) ?? 25 });
+    }
+
     case TOOL_NAMES.UPDATE_SCOPE_POLICIES: {
       return client.updateScopePolicies(
         args.agent_id as string,
@@ -535,6 +540,7 @@ export function createServer(config: ServerConfig) {
   server.tool(TOOL_NAMES.GET_SESSION_RECEIPT, desc(TOOL_NAMES.GET_SESSION_RECEIPT), schemas.get_session_receipt, h(TOOL_NAMES.GET_SESSION_RECEIPT));
   server.tool(TOOL_NAMES.CREATE_PRESENTATION_PROOF, desc(TOOL_NAMES.CREATE_PRESENTATION_PROOF), schemas.create_presentation_proof, h(TOOL_NAMES.CREATE_PRESENTATION_PROOF));
   server.tool(TOOL_NAMES.CREATE_CLAIM_LINK, desc(TOOL_NAMES.CREATE_CLAIM_LINK), schemas.create_claim_link, h(TOOL_NAMES.CREATE_CLAIM_LINK));
+  server.tool(TOOL_NAMES.GET_CLAIM_STATUS, desc(TOOL_NAMES.GET_CLAIM_STATUS), schemas.get_claim_status, h(TOOL_NAMES.GET_CLAIM_STATUS));
   server.tool(TOOL_NAMES.VERIFY_MANDATE, desc(TOOL_NAMES.VERIFY_MANDATE), schemas.verify_mandate, h(TOOL_NAMES.VERIFY_MANDATE));
   server.tool(TOOL_NAMES.RECORD_AP2_RECEIPT, desc(TOOL_NAMES.RECORD_AP2_RECEIPT), schemas.record_ap2_receipt, h(TOOL_NAMES.RECORD_AP2_RECEIPT));
   server.tool(TOOL_NAMES.SIGN_AP2_RECEIPT, desc(TOOL_NAMES.SIGN_AP2_RECEIPT), schemas.sign_ap2_receipt, h(TOOL_NAMES.SIGN_AP2_RECEIPT));
