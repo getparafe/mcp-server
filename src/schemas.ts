@@ -151,7 +151,6 @@ export const schemas = {
 
   verify_consent_locally: {
     consent_token: z.string().describe('JWT consent token to verify.'),
-    broker_public_key: z.string().optional().describe("Optional, legacy: the broker's Ed25519 key in base64, for tokens issued before 2026-09-30. Omit it: the broker's JWKS is fetched and cached."),
   },
 
   get_session_receipt: {

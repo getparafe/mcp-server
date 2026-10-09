@@ -487,10 +487,9 @@ async function handleToolCall(
 
     case TOOL_NAMES.VERIFY_CONSENT_LOCALLY: {
       checkConsentAudience(client, args.consent_token as string);
-      return client.verifyConsentLocally(
-        args.consent_token as string,
-        (args.broker_public_key as string | undefined) || undefined,
-      );
+      // The broker's JWKS is fetched and cached; the retired Ed25519 key no
+      // longer verifies tokens (broker S-72, 2026-10-09).
+      return client.verifyConsentLocally(args.consent_token as string);
     }
 
     case TOOL_NAMES.GET_AGENT_METRICS: {

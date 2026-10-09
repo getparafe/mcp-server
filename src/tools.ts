@@ -480,10 +480,6 @@ Use parafe_verify_consent (network round-trip) when you also want the broker to 
           type: 'string',
           description: 'JWT consent token to verify.',
         },
-        broker_public_key: {
-          type: 'string',
-          description: "Optional, legacy: the broker's Ed25519 key in base64, for tokens issued before 2026-09-30. Omit it: the broker's JWKS is fetched and cached.",
-        },
       },
       required: ['consent_token'],
     },
