@@ -165,6 +165,7 @@ Parafe Broker API
 - `parafe_verify_consent` and `parafe_verify_consent_locally` refuse a consent token issued for a different agent than the loaded one (`wrong_audience`), so a token from another session can't be replayed at this agent. A refusal names its cause (`token_expired`, `token_invalid`, `session_inactive`, ...).
 - An agent whose credential expired less than a year ago can renew it with `parafe_renew_credential` (broker from 2026-10-08).
 - `parafe_get_agent_metrics` reads only your own agent's track record: other agents' are private since 2026-10-08 (set reputation floors in your scope policies instead).
+- The `instruction` of an `attested` handshake goes to the other agent, and the tool descriptions now say so: send a short summary of what the person asked for, without personal details. With SDK 0.14, the handshake and consent token results carry `evidenceSalt`: the session receipt's hash of the instruction is salted since 2026-10-09.
 
 ## New in 0.14.0
 

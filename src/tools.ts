@@ -160,7 +160,7 @@ Use 'autonomous' authorization (default) when acting on your own. Use 'attested'
           type: 'object',
           description: "Evidence for the modality. Required if modality is not 'autonomous'.",
           properties: {
-            instruction: { type: 'string', description: 'attested: what the human instructed.' },
+            instruction: { type: 'string', description: 'attested: what the human asked for, as a short summary, without personal details. In a new handshake the other agent receives this text.' },
             platform: { type: 'string', description: 'attested: the platform the instruction was given on.' },
             timestamp: { type: 'string', description: 'attested: ISO 8601 timestamp of the instruction. Auto-set to now if omitted.' },
             ap2_mandate: { type: 'string', description: 'delegated / verified: the user-signed AP2 mandate as presented (~~-joined Delegate SD-JWT chain).' },
@@ -231,7 +231,7 @@ For example, if a flight-rebooking session needs to also process a payment, you 
         authorization_evidence: {
           type: 'object',
           properties: {
-            instruction: { type: 'string', description: 'attested: what the human instructed.' },
+            instruction: { type: 'string', description: 'attested: what the human asked for, as a short summary, without personal details. In a new handshake the other agent receives this text.' },
             platform: { type: 'string', description: 'attested: the platform the instruction was given on.' },
             timestamp: { type: 'string', description: 'attested: ISO 8601 timestamp of the instruction. Auto-set to now if omitted.' },
             ap2_mandate: { type: 'string', description: 'delegated / verified: the user-signed AP2 mandate as presented (~~-joined Delegate SD-JWT chain).' },

@@ -5,7 +5,7 @@
 import { z } from 'zod';
 
 const authorizationEvidence = z.object({
-  instruction: z.string().optional().describe("attested: what the human instructed."),
+  instruction: z.string().optional().describe("attested: what the human asked for, as a short summary, without personal details. In a new handshake the other agent receives this text."),
   platform: z.string().optional().describe('attested: the platform the instruction was given on.'),
   timestamp: z.string().optional().describe('attested: ISO 8601 timestamp of the instruction. Auto-set to now if omitted.'),
   ap2_mandate: z.string().optional().describe("delegated / verified: the user-signed AP2 mandate as presented (the ~~-joined Delegate SD-JWT chain)."),
